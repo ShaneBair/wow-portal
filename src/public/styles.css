@@ -1,0 +1,147 @@
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color-scheme: dark;
+  background: #0a0d12;
+  color: #f4f6f8;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 15% 0%, rgba(72, 102, 167, .22), transparent 35rem),
+    #0a0d12;
+}
+
+.shell {
+  width: min(1040px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 72px 0;
+}
+
+.hero {
+  display: flex;
+  gap: 32px;
+  justify-content: space-between;
+  align-items: end;
+  margin-bottom: 36px;
+}
+
+.eyebrow {
+  letter-spacing: .18em;
+  font-size: .75rem;
+  opacity: .65;
+  margin: 0 0 10px;
+}
+
+h1 {
+  font-size: clamp(3rem, 8vw, 6rem);
+  line-height: .9;
+  margin: 0;
+  letter-spacing: -.06em;
+}
+
+.lede {
+  max-width: 620px;
+  font-size: 1.15rem;
+  color: #aeb7c4;
+}
+
+.status-card {
+  white-space: nowrap;
+  border: 1px solid #29313d;
+  background: #121720;
+  border-radius: 999px;
+  padding: 10px 14px;
+}
+
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+  background: #687385;
+  margin-right: 8px;
+}
+
+.dot.online { background: #58d68d; }
+.dot.offline { background: #ec7063; }
+
+.grid {
+  display: grid;
+  grid-template-columns: 1.1fr .9fr;
+  gap: 20px;
+}
+
+.panel {
+  border: 1px solid #252d39;
+  border-radius: 18px;
+  padding: 28px;
+  background: rgba(18, 23, 32, .92);
+}
+
+.panel h2 { margin-top: 0; }
+
+label {
+  display: block;
+  margin: 15px 0;
+  font-size: .9rem;
+  color: #bec6d2;
+}
+
+input {
+  display: block;
+  width: 100%;
+  margin-top: 7px;
+  padding: 12px 13px;
+  border: 1px solid #343e4d;
+  border-radius: 9px;
+  background: #0c1118;
+  color: white;
+  font: inherit;
+}
+
+button {
+  width: 100%;
+  border: 0;
+  border-radius: 9px;
+  padding: 13px 16px;
+  font-weight: 700;
+  cursor: pointer;
+  background: #f3f5f7;
+  color: #10141a;
+}
+
+code {
+  background: #080b10;
+  border: 1px solid #29313d;
+  border-radius: 7px;
+  padding: 3px 6px;
+}
+
+.panel > code {
+  display: block;
+  margin: 18px 0 26px;
+  padding: 14px;
+  overflow-x: auto;
+}
+
+.steps { margin-top: 30px; color: #b9c2cf; }
+.steps li { margin: 9px 0; }
+
+.message {
+  min-height: 1.4em;
+  font-size: .9rem;
+}
+
+.message.success { color: #58d68d; }
+.message.error { color: #ec7063; }
+
+@media (max-width: 760px) {
+  .hero { display: block; }
+  .status-card { display: inline-block; margin-top: 14px; }
+  .grid { grid-template-columns: 1fr; }
+  .shell { padding-top: 40px; }
+}

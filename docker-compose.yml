@@ -1,0 +1,16 @@
+services:
+  wow-portal:
+    build: .
+    container_name: wow-portal
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:8090:8090"
+    networks:
+      - ac-network
+
+networks:
+  ac-network:
+    external: true
+    name: wow-server-playerbots_ac-network
