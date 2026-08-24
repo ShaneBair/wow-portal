@@ -1,9 +1,12 @@
-import { Outlet } from "react-router";
+import { NavLink, Outlet } from "react-router";
 
 export function AppShell() {
   return (
     <div className="shell">
-      <div className="primary-navigation-slot" />
+      <nav className="primary-navigation" aria-label="Primary">
+        <NavLink to="/" end>Home</NavLink>
+        <NavLink to="/stats" end>Stats</NavLink>
+      </nav>
       <Outlet />
     </div>
   );

@@ -35,7 +35,7 @@ test("serves only allowlisted browser routes from the client output", async () =
   const baseUrl = `http://127.0.0.1:${port}`;
 
   try {
-    for (const route of ["/", "/stats"]) {
+    for (const route of ["/", "/stats", "/stats?population=bots"]) {
       const response = await fetch(`${baseUrl}${route}`);
       const body = await response.text();
       assert.equal(response.status, 200);

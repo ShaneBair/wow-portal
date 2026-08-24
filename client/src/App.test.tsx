@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router";
+import { createMemoryRouter, RouterProvider } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 import { App } from "./App.js";
 
@@ -100,14 +100,31 @@ function renderRoute(path = "/") {
       mutations: { retry: false }
     }
   });
+  const router = createMemoryRouter(
+    [{ path: "*", element: <App /> }],
+    { initialEntries: [path] }
+  );
 
-  return render(
+  const result = render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[path]}>
-        <App />
-      </MemoryRouter>
+      <RouterProvider router={router} />
     </QueryClientProvider>
   );
+
+  return { ...result, router };
+}
+
+function expectCurrentNavigationLink(name: "Home" | "Stats") {
+  const navigation = screen.getByRole("navigation", { name: "Primary" });
+  const links = within(navigation).getAllByRole("link");
+  const currentLinks = links.filter((link) => link.getAttribute("aria-current") === "page");
+
+  expect(links.map((link) => ({ name: link.textContent, href: link.getAttribute("href") }))).toEqual([
+    { name: "Home", href: "/" },
+    { name: "Stats", href: "/stats" }
+  ]);
+  expect(currentLinks).toHaveLength(1);
+  expect(currentLinks[0]?.textContent).toBe(name);
 }
 
 async function flushMicrotasks(): Promise<void> {
@@ -125,6 +142,7 @@ describe("application routes", () => {
 
     expect(screen.getByRole("heading", { level: 1, name: "DaBoysZeroth" })).toBeTruthy();
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    expectCurrentNavigationLink("Home");
     await waitFor(() => expect(document.title).toBe("DaBoysZeroth"));
   });
 
@@ -133,10 +151,51 @@ describe("application routes", () => {
     renderRoute("/stats");
 
     expect(screen.getByRole("heading", { level: 1, name: "Stats" })).toBeTruthy();
-    expect(screen.getByText("Statistics are not available yet.")).toBeTruthy();
+    expect(screen.getByText("Statistics are coming next.")).toBeTruthy();
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    expectCurrentNavigationLink("Stats");
     await waitFor(() => expect(document.title).toBe("Stats | DaBoysZeroth"));
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps Stats current when query parameters are present", () => {
+    const fetchMock = installFetchMock();
+    renderRoute("/stats?population=bots");
+
+    expectCurrentNavigationLink("Stats");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("navigates through links and browser history with matching titles and active states", async () => {
+    const fetchMock = installFetchMock();
+    const user = userEvent.setup();
+    const { router } = renderRoute();
+    await screen.findByText("Server online");
+    await screen.findByText("No real players are online.");
+    const homeRequestCount = fetchMock.mock.calls.length;
+
+    await user.click(screen.getByRole("link", { name: "Stats" }));
+    expect(screen.getByRole("heading", { level: 1, name: "Stats" })).toBeTruthy();
+    expectCurrentNavigationLink("Stats");
+    await waitFor(() => expect(document.title).toBe("Stats | DaBoysZeroth"));
+    expect(fetchMock).toHaveBeenCalledTimes(homeRequestCount);
+
+    await act(async () => {
+      await router.navigate(-1);
+    });
+    expect(screen.getByRole("heading", { level: 1, name: "DaBoysZeroth" })).toBeTruthy();
+    expectCurrentNavigationLink("Home");
+    await waitFor(() => expect(document.title).toBe("DaBoysZeroth"));
+    await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThan(homeRequestCount));
+    const requestCountBeforeForward = fetchMock.mock.calls.length;
+
+    await act(async () => {
+      await router.navigate(1);
+    });
+    expect(screen.getByRole("heading", { level: 1, name: "Stats" })).toBeTruthy();
+    expectCurrentNavigationLink("Stats");
+    await waitFor(() => expect(document.title).toBe("Stats | DaBoysZeroth"));
+    expect(fetchMock).toHaveBeenCalledTimes(requestCountBeforeForward);
   });
 
   it("renders a client-side not-found page for an unmatched route", async () => {
@@ -145,6 +204,8 @@ describe("application routes", () => {
 
     expect(screen.getByRole("heading", { level: 1, name: "Page not found" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Return home" }).getAttribute("href")).toBe("/");
+    expect(screen.getByRole("navigation", { name: "Primary" })).toBeTruthy();
+    expect(screen.queryAllByRole("link", { current: "page" })).toHaveLength(0);
     await waitFor(() => expect(document.title).toBe("Page Not Found | DaBoysZeroth"));
     expect(fetchMock).not.toHaveBeenCalled();
   });

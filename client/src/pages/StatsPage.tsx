@@ -8,12 +8,12 @@ export function StatsPage() {
         <div>
           <p className="eyebrow">SERVER STATISTICS</p>
           <h1>Stats</h1>
-          <p className="lede">Statistics features will be added after the React foundation.</p>
+          <p className="lede">Server activity and trends will have a dedicated home here.</p>
         </div>
       </header>
 
-      <section className="panel route-placeholder" aria-label="Statistics availability">
-        <p>Statistics are not available yet.</p>
+      <section className="panel route-placeholder stats-empty-state" aria-label="Statistics availability">
+        <p>Statistics are coming next.</p>
       </section>
     </main>
   );
