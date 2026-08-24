@@ -1,7 +1,62 @@
-type SoapResult = {
+import { XMLParser, XMLValidator } from "fast-xml-parser";
+
+export type SoapResult = {
   ok: boolean;
   output: string;
 };
+
+const soapParser = new XMLParser({
+  removeNSPrefix: true,
+  parseTagValue: false,
+  trimValues: false,
+  processEntities: true
+});
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function decodeEscapedLineEndings(value: string): string {
+  return value
+    .replace(/&#(?:x0*d|0*13);/giu, "\r")
+    .replace(/&#(?:x0*a|0*10);/giu, "\n");
+}
+
+export function parseSoapExecuteCommandResponse(xml: string): string {
+  const validationResult = XMLValidator.validate(xml);
+
+  if (validationResult !== true) {
+    throw new Error("AzerothCore returned malformed SOAP XML.");
+  }
+
+  const document: unknown = soapParser.parse(xml);
+
+  if (!isRecord(document) || !isRecord(document.Envelope) || !isRecord(document.Envelope.Body)) {
+    throw new Error("AzerothCore returned an invalid SOAP envelope.");
+  }
+
+  const body = document.Envelope.Body;
+
+  if (body.Fault !== undefined) {
+    throw new Error("AzerothCore returned a SOAP fault.");
+  }
+
+  const commandResponse = body.executeCommandResponse;
+
+  if (!isRecord(commandResponse)) {
+    throw new Error("AzerothCore SOAP response did not contain a command result.");
+  }
+
+  const output = commandResponse.return ?? commandResponse.result;
+
+  if (typeof output !== "string") {
+    throw new Error("AzerothCore SOAP command result was not text.");
+  }
+
+  // AzerothCore's SOAP layer can encode command line endings twice, leaving
+  // strings such as "&#xD;" after the XML parser performs its first decode.
+  return decodeEscapedLineEndings(output);
+}
 
 function escapeXml(value: string): string {
   return value
@@ -53,11 +108,15 @@ export async function executeAzerothCoreCommand(command: string): Promise<SoapRe
 
   const body = await response.text();
 
-  if (!response.ok || body.includes("<SOAP-ENV:Fault>") || body.includes("<SOAP:Fault>")) {
-    return { ok: false, output: body };
+  if (!response.ok) {
+    return { ok: false, output: "" };
   }
 
-  return { ok: true, output: body };
+  try {
+    return { ok: true, output: parseSoapExecuteCommandResponse(body) };
+  } catch {
+    return { ok: false, output: "" };
+  }
 }
 
 export async function createAccount(

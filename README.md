@@ -7,6 +7,7 @@ Small friends-only portal for the private AzerothCore server.
 - Invite-code-protected account creation
 - AzerothCore SOAP integration
 - Server online/offline status
+- Human-only online player roster with a short-lived server-side cache
 - Connection instructions
 - Registration rate limiting
 - Docker deployment on the existing AzerothCore network
@@ -65,6 +66,19 @@ The portal itself is bound only to:
 ```
 
 so it is not directly exposed to the LAN or Internet.
+
+The roster endpoint executes the read-only `playerstats online` command supplied by the
+compatible `mod-player-statistics` module. When the module or SOAP service is unavailable,
+`GET /api/online-players` returns `503` rather than an empty roster.
+
+## Verification
+
+Run the strict build and mocked automated tests without contacting the live game server:
+
+```bash
+npm run build
+npm test
+```
 
 ## Next
 

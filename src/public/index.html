@@ -67,6 +67,34 @@
         </div>
       </article>
     </section>
+
+    <section class="panel players-panel" aria-labelledby="playersHeading">
+      <div class="players-heading">
+        <h2 id="playersHeading">Players Online</h2>
+        <span id="playerCount" class="count-badge" hidden></span>
+      </div>
+
+      <p id="playersMessage" class="players-message" role="status" aria-live="polite">
+        Checking who is online...
+      </p>
+
+      <div id="playersTableContainer" class="table-container" hidden>
+        <table class="roster-table">
+          <caption class="visually-hidden">Currently online human-controlled characters</caption>
+          <thead>
+            <tr>
+              <th scope="col">Account</th>
+              <th scope="col">Character</th>
+              <th scope="col">Race</th>
+              <th scope="col">Class</th>
+              <th scope="col">Level</th>
+              <th scope="col">Location</th>
+            </tr>
+          </thead>
+          <tbody id="playersTableBody"></tbody>
+        </table>
+      </div>
+    </section>
   </main>
 
   <script src="/app.js"></script>

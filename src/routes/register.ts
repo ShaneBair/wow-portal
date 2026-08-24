@@ -58,7 +58,7 @@ router.post("/api/register", registrationLimiter, async (req, res) => {
     const result = await createAccount(username, password, email);
 
     if (!result.ok) {
-      console.error("AzerothCore account creation failed:", result.output);
+      console.error("AzerothCore account creation failed.");
       return res.status(502).json({
         error: "The game server could not create that account. The username may already exist."
       });
@@ -68,7 +68,8 @@ router.post("/api/register", registrationLimiter, async (req, res) => {
       message: "Account created! You can now log into DaBoysZeroth."
     });
   } catch (error) {
-    console.error("Registration error:", error);
+    const errorKind = error instanceof Error ? error.name : "UnknownError";
+    console.error(`Registration request failed (${errorKind}).`);
     return res.status(502).json({
       error: "Unable to reach the game server. Try again later."
     });
