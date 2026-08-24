@@ -14,16 +14,18 @@
     "build:server": "tsc",
     "build:client": "tsc -p client/tsconfig.json && vite build --config vite.config.ts",
     "test": "npm run test:server && npm run test:client",
-    "test:server": "tsc -p tsconfig.test.json && node --test dist-test/tests/azerothcore.test.js dist-test/tests/online-roster.test.js dist-test/tests/online-players-route.test.js dist-test/tests/client-routing.test.js",
+    "test:server": "tsc -p tsconfig.test.json && node --test dist-test/tests/azerothcore.test.js dist-test/tests/online-roster.test.js dist-test/tests/online-players-route.test.js dist-test/tests/client-routing.test.js dist-test/tests/death-leaderboard.test.js dist-test/tests/stats-deaths-route.test.js",
     "test:client": "vitest run --config vite.config.ts",
     "start": "node dist/server.js"
   },
   "dependencies": {
     "@tanstack/react-query": "5.102.2",
+    "@tanstack/react-table": "9.1.2",
     "dotenv": "^16.6.1",
     "express": "^5.1.0",
     "express-rate-limit": "^8.6.2",
     "fast-xml-parser": "^5.11.0",
+    "mysql2": "3.24.2",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-router": "8.3.0"

@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import onlinePlayersRouter from "./routes/online-players.js";
 import registerRouter from "./routes/register.js";
+import statsDeathsRouter from "./routes/stats-deaths.js";
 import statusRouter from "./routes/status.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -26,6 +27,7 @@ export function createApp(options: CreateAppOptions = {}): Express {
   app.use(registerRouter);
   app.use(statusRouter);
   app.use(onlinePlayersRouter);
+  app.use(statsDeathsRouter);
 
   app.get("/health", (_req, res) => {
     res.json({ ok: true });
