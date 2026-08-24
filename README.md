@@ -2,6 +2,12 @@
 
 Small friends-only portal for the private AzerothCore server.
 
+The browser application is a client-rendered React app built with Vite. Express serves the
+production bundle and continues to own all APIs, validation, rate limits, and AzerothCore
+integration.
+
+Node.js 22.22.2 or newer is required by the locked frontend toolchain.
+
 ## V1 features
 
 - Invite-code-protected account creation
@@ -24,20 +30,35 @@ Small friends-only portal for the private AzerothCore server.
 
    Use the existing SOAP service account or create a dedicated portal service account in AzerothCore.
 
-3. Build and start:
+3. Install dependencies and build:
+
+   ```bash
+   npm ci
+   npm run build
+   ```
+
+4. For local development, start the React and Express development servers together:
+
+   ```bash
+   npm run dev
+   ```
+
+   Open the Vite URL shown in the terminal. Browser API requests are proxied to Express.
+
+5. Build and start the container:
 
    ```bash
    docker compose up -d --build
    ```
 
-4. Check:
+6. Check:
 
    ```bash
    docker compose ps
    docker compose logs -f wow-portal
    ```
 
-5. Open on GamingTower01:
+7. Open on GamingTower01:
 
    ```
    http://localhost:8090
@@ -73,7 +94,8 @@ compatible `mod-player-statistics` module. When the module or SOAP service is un
 
 ## Verification
 
-Run the strict build and mocked automated tests without contacting the live game server:
+Run strict server/client builds and mocked server/frontend tests without contacting the live
+game server:
 
 ```bash
 npm run build

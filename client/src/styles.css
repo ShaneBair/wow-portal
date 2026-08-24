@@ -15,10 +15,25 @@ body {
     #0a0d12;
 }
 
+a {
+  color: #c8d8f5;
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible {
+  outline: 3px solid #8eb4ff;
+  outline-offset: 3px;
+}
+
 .shell {
   width: min(1040px, calc(100% - 32px));
   margin: 0 auto;
   padding: 72px 0;
+}
+
+.primary-navigation-slot:empty {
+  display: none;
 }
 
 .hero {
@@ -201,6 +216,11 @@ button {
   color: #10141a;
 }
 
+button:disabled {
+  cursor: wait;
+  opacity: .7;
+}
+
 code {
   background: #080b10;
   border: 1px solid #29313d;
@@ -225,6 +245,14 @@ code {
 
 .message.success { color: #58d68d; }
 .message.error { color: #ec7063; }
+
+.route-placeholder {
+  color: #aeb7c4;
+}
+
+.route-placeholder p {
+  margin: 0;
+}
 
 @media (max-width: 760px) {
   .hero { display: block; }
