@@ -1,6 +1,7 @@
 import { Router, type RequestHandler } from "express";
 import rateLimit from "express-rate-limit";
 import {
+  DeathLeaderboardContractIntegrityError,
   getDeathLeaderboard,
   type DeathLeaderboardResponse,
   type StatsPopulation
@@ -57,7 +58,9 @@ export function createStatsDeathsRouter(
       try {
         return res.json(await loadLeaderboard(population));
       } catch (error) {
-        if (error instanceof StatsDatabaseConfigurationError) {
+        if (error instanceof DeathLeaderboardContractIntegrityError) {
+          console.error("Death statistics provider contract integrity check failed.");
+        } else if (error instanceof StatsDatabaseConfigurationError) {
           console.error(
             "Death statistics database is not configured; set the required STATS_DB_* environment variables."
           );

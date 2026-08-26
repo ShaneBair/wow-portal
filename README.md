@@ -14,6 +14,7 @@ Node.js 22.22.2 or newer is required by the locked frontend toolchain.
 - AzerothCore SOAP integration
 - Server online/offline status
 - Human-only online player roster with a short-lived server-side cache
+- Player/Bot-filtered deaths leaderboard with comprehensive post-cutover coverage
 - Connection instructions
 - Registration rate limiting
 - Docker deployment on the existing AzerothCore network
@@ -91,6 +92,12 @@ so it is not directly exposed to the LAN or Internet.
 The roster endpoint executes the read-only `playerstats online` command supplied by the
 compatible `mod-player-statistics` module. When the module or SOAP service is unavailable,
 `GET /api/online-players` returns `503` rather than an empty roster.
+
+The deaths leaderboard reads `mod_player_stats_events`, `mod_player_stats_migrations`, and
+`characters` from the configured characters database plus `account` from the auth database.
+Its dedicated database user needs `SELECT` on those four tables only. The canonical death
+provider migration must be deployed and verified before deploying this portal version; invalid
+or missing cutover metadata causes `GET /api/stats/deaths` to fail closed with `503`.
 
 ## Verification
 

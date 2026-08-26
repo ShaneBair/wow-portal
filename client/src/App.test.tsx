@@ -27,6 +27,9 @@ const populatedRoster = {
 const emptyDeaths = {
   generatedAt: "2026-08-24T16:00:00.000Z",
   population: "players",
+  coverage: {
+    comprehensiveSince: "2026-08-25T14:30:00.000Z"
+  },
   count: 0,
   entries: []
 };

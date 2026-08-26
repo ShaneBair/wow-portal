@@ -16,6 +16,9 @@ export interface DeathLeaderboardEntry {
 export interface DeathLeaderboardResponse {
   generatedAt: string;
   population: StatsPopulation;
+  coverage: {
+    comprehensiveSince: string;
+  };
   count: number;
   entries: DeathLeaderboardEntry[];
 }
@@ -95,6 +98,8 @@ export function parseDeathLeaderboardResponse(
     !isRecord(value) ||
     !isUtcIsoTimestamp(value.generatedAt) ||
     value.population !== expectedPopulation ||
+    !isRecord(value.coverage) ||
+    !isUtcIsoTimestamp(value.coverage.comprehensiveSince) ||
     typeof value.count !== "number" ||
     !Number.isInteger(value.count) ||
     value.count < 0 ||
@@ -113,6 +118,9 @@ export function parseDeathLeaderboardResponse(
   return {
     generatedAt: value.generatedAt,
     population: expectedPopulation,
+    coverage: {
+      comprehensiveSince: value.coverage.comprehensiveSince
+    },
     count: value.count,
     entries: entries as DeathLeaderboardEntry[]
   };

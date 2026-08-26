@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildDeathLeaderboardQuery,
+  DeathLeaderboardContractIntegrityError,
   DeathLeaderboardService,
+  mapDeathLeaderboardQueryRows,
   mapDeathLeaderboardRows,
   type StatsPopulation
 } from "../src/services/death-leaderboard.js";
@@ -27,18 +29,55 @@ function row(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   };
 }
 
+function queryRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    cutoverCount: 1,
+    cutoffEventId: "500",
+    comprehensiveSince: new Date("2026-08-25T14:30:00.000Z"),
+    hasInvalidCanonical: 0,
+    ...row(),
+    ...overrides
+  };
+}
+
+function emptyQueryRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return queryRow({
+    characterName: null,
+    raceId: null,
+    classId: null,
+    level: null,
+    accountLogin: null,
+    isBot: null,
+    deaths: null,
+    ...overrides
+  });
+}
+
 const config = {
   charactersDatabase: "acore_characters",
   authDatabase: "acore_auth"
 };
 
-test("builds bounded fixed SQL with the documented death-event interpretation", () => {
+test("builds the bounded hybrid death query with integrity and population checks", () => {
   const players = buildDeathLeaderboardQuery(config, "players");
   const all = buildDeathLeaderboardQuery(config, "all");
 
-  assert.deepEqual(players.values, ["PLAYER_KILLED_BY_CREATURE", "PVP_KILL"]);
+  assert.deepEqual(players.values, [
+    "canonical_player_death_v1",
+    "PLAYER_DEATH",
+    "PLAYER_KILLED_BY_CREATURE",
+    "PVP_KILL",
+    "PLAYER_DEATH"
+  ]);
+  assert.match(players.sql, /FROM `acore_characters`\.`mod_player_stats_migrations`/u);
+  assert.match(players.sql, /WHERE migration_key = \?/u);
+  assert.match(players.sql, /COUNT\(\*\) AS cutover_count/u);
+  assert.match(players.sql, /EXISTS[\s\S]+e\.id <= x\.cutoff_event_id/u);
   assert.match(players.sql, /actor_guid AS character_guid, e\.actor_is_bot AS is_bot/u);
   assert.match(players.sql, /target_guid AS character_guid, e\.target_is_bot AS is_bot/u);
+  assert.match(players.sql, /e\.event_type = \?[\s\S]+e\.id > x\.cutoff_event_id/u);
+  assert.equal((players.sql.match(/e\.id <= x\.cutoff_event_id/gu) ?? []).length, 3);
+  assert.equal((players.sql.match(/e\.id > x\.cutoff_event_id/gu) ?? []).length, 1);
   assert.doesNotMatch(players.sql, /CREATURE_KILL(?:_PET)?/u);
   assert.match(players.sql, /UNION ALL/u);
   assert.match(players.sql, /WHERE is_bot = 0\s+GROUP BY character_guid, is_bot/u);
@@ -47,8 +86,8 @@ test("builds bounded fixed SQL with the documented death-event interpretation", 
   assert.match(all.sql, /JOIN `acore_characters`\.`characters` c ON c\.guid = d\.character_guid/u);
   assert.match(all.sql, /LEFT JOIN `acore_auth`\.`account` a ON a\.id = c\.account/u);
   assert.match(all.sql, /WHERE c\.deleteDate IS NULL/u);
-  assert.match(all.sql, /ORDER BY d\.deaths DESC, c\.name ASC, d\.is_bot ASC/u);
-  assert.match(all.sql, /LIMIT 25$/u);
+  assert.match(all.sql, /ORDER BY d\.deaths DESC, c\.name ASC, d\.is_bot ASC\s+LIMIT 25/u);
+  assert.match(all.sql, /LEFT JOIN leaderboard l ON TRUE/u);
   assert.doesNotMatch(all.sql, /email|last_login|sessionkey|verifier|salt/iu);
   assert.throws(
     () => buildDeathLeaderboardQuery({
@@ -57,6 +96,68 @@ test("builds bounded fixed SQL with the documented death-event interpretation", 
     }, "all"),
     /ASCII letters, digits, and underscores/u
   );
+});
+
+test("validates cutover metadata, coverage, integrity, and empty results", async (context) => {
+  await context.test("accepts zero and nonzero safe cutoffs", () => {
+    for (const cutoffEventId of [0, "500", 9007199254740991n]) {
+      const result = mapDeathLeaderboardQueryRows([
+        emptyQueryRow({ cutoffEventId, comprehensiveSince: "2026-08-25 14:30:00.123456" })
+      ]);
+      assert.deepEqual(result, {
+        coverage: { comprehensiveSince: "2026-08-25T14:30:00.123Z" },
+        entries: []
+      });
+    }
+  });
+
+  for (const cutoverCount of [0, 2, "invalid"] as const) {
+    await context.test(`cutover count ${String(cutoverCount)}`, () => {
+      assert.throws(
+        () => mapDeathLeaderboardQueryRows([emptyQueryRow({ cutoverCount })]),
+        /cutover metadata|cutoverCount/u
+      );
+    });
+  }
+
+  for (const cutoffEventId of [-1, 1.5, "9007199254740992", null] as const) {
+    await context.test(`cutoff ${String(cutoffEventId)}`, () => {
+      assert.throws(
+        () => mapDeathLeaderboardQueryRows([emptyQueryRow({ cutoffEventId })]),
+        /cutoffEventId/u
+      );
+    });
+  }
+
+  for (const comprehensiveSince of [null, "not-a-date", "2026-02-30 14:30:00"] as const) {
+    await context.test(`timestamp ${String(comprehensiveSince)}`, () => {
+      assert.throws(
+        () => mapDeathLeaderboardQueryRows([emptyQueryRow({ comprehensiveSince })]),
+        /comprehensiveSince/u
+      );
+    });
+  }
+
+  await context.test("rejects canonical rows at or before the cutoff", () => {
+    assert.throws(
+      () => mapDeathLeaderboardQueryRows([emptyQueryRow({ hasInvalidCanonical: 1 })]),
+      DeathLeaderboardContractIntegrityError
+    );
+  });
+
+  await context.test("rejects a missing query result", () => {
+    assert.throws(() => mapDeathLeaderboardQueryRows([]), /database result is invalid/u);
+  });
+
+  await context.test("maps repeated valid coverage without exposing cutover fields", () => {
+    const result = mapDeathLeaderboardQueryRows([
+      queryRow(),
+      queryRow({ characterName: "Other", deaths: 3, isBot: 1 })
+    ]);
+    assert.equal(result.coverage.comprehensiveSince, "2026-08-25T14:30:00.000Z");
+    assert.equal(result.entries.length, 2);
+    assert.equal("cutoffEventId" in result.entries[0]!, false);
+  });
 });
 
 test("maps current metadata, preserves control groups, and strips integration-only fields", () => {
@@ -167,7 +268,7 @@ test("keeps successful cache entries independent by population for sixty seconds
   const calls: StatsPopulation[] = [];
   const service = new DeathLeaderboardService(async (population) => {
     calls.push(population);
-    return [row({ isBot: population === "all" ? 1 : 0 })];
+    return [queryRow({ isBot: population === "all" ? 1 : 0 })];
   }, () => now);
 
   const players = await service.getLeaderboard("players");
@@ -182,6 +283,7 @@ test("keeps successful cache entries independent by population for sixty seconds
   assert.deepEqual(calls, ["players", "all"]);
   assert.equal(players.population, "players");
   assert.equal(all.population, "all");
+  assert.deepEqual(players.coverage, { comprehensiveSince: "2026-08-25T14:30:00.000Z" });
 });
 
 test("coalesces only concurrent requests for the same population", async () => {
@@ -197,8 +299,8 @@ test("coalesces only concurrent requests for the same population", async () => {
   const all = service.getLeaderboard("all");
   assert.deepEqual(calls, ["players", "all"]);
 
-  pending.get("players")?.([row()]);
-  pending.get("all")?.([row({ isBot: 1 })]);
+  pending.get("players")?.([queryRow()]);
+  pending.get("all")?.([queryRow({ isBot: 1 })]);
   const [firstResult, secondResult] = await Promise.all([firstPlayers, secondPlayers]);
   await all;
   assert.strictEqual(firstResult, secondResult);
@@ -210,7 +312,7 @@ test("returns failure instead of stale data after an expired refresh fails", asy
   const service = new DeathLeaderboardService(async () => {
     calls += 1;
     if (calls === 1) {
-      return [row()];
+      return [queryRow()];
     }
     throw new Error("database unavailable");
   }, () => now);

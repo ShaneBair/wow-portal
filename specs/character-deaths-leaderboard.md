@@ -1,9 +1,11 @@
 # Character Deaths Leaderboard
 
-Status: Ready for implementation  
+Status: Implemented; aggregation and coverage copy superseded by `specs/comprehensive-player-deaths.md`
 Repository: `wow-portal`  
 Depends on: `specs/react-frontend-foundation.md`, `specs/site-navigation.md`, `specs/stats-population-filter.md`  
 Data contract owner: sibling `mod-player-statistics`
+
+> This file records the version 1 creature/PvP leaderboard contract. Preserve its API, UI, security, caching, and population behavior, but use `specs/comprehensive-player-deaths.md` for the next aggregation query, cutover semantics, and coverage wording.
 
 ## Problem
 

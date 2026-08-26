@@ -91,6 +91,7 @@ export function getStatsDatabase(): { pool: Pool; config: StatsDatabaseConfig } 
       idleTimeout: 60_000,
       queueLimit: 8,
       connectTimeout: 5_000,
+      timezone: "Z",
       enableKeepAlive: true
     });
     statsPoolConfig = config;

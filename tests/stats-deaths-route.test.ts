@@ -7,6 +7,7 @@ import type {
   DeathLeaderboardResponse,
   StatsPopulation
 } from "../src/services/death-leaderboard.js";
+import { DeathLeaderboardContractIntegrityError } from "../src/services/death-leaderboard.js";
 
 const noLimit: RequestHandler = (_req, _res, next) => next();
 
@@ -51,6 +52,9 @@ function response(population: StatsPopulation): DeathLeaderboardResponse {
   return {
     generatedAt: "2026-08-24T16:00:00.000Z",
     population,
+    coverage: {
+      comprehensiveSince: "2026-08-25T14:30:00.000Z"
+    },
     count: 1,
     entries: [{
       characterName: "Thalgrim",
@@ -85,6 +89,9 @@ test("returns 200 with an empty leaderboard", async () => {
   const empty: DeathLeaderboardResponse = {
     generatedAt: "2026-08-24T16:00:00.000Z",
     population: "players",
+    coverage: {
+      comprehensiveSince: "2026-08-25T14:30:00.000Z"
+    },
     count: 0,
     entries: []
   };
@@ -126,6 +133,27 @@ test("returns a safe 503 response without raw database details", async () => {
     });
     assert.equal(logs.length, 1);
     assert.doesNotMatch(logs[0] ?? "", /mariadb-secret|password|driver failed/u);
+  } finally {
+    console.error = originalError;
+  }
+});
+
+test("fails closed on provider contract corruption with a concise safe log", async () => {
+  const originalError = console.error;
+  const logs: string[] = [];
+  console.error = (message?: unknown) => logs.push(String(message));
+
+  try {
+    const result = await requestRoute("?population=all", async () => {
+      throw new DeathLeaderboardContractIntegrityError();
+    });
+
+    assert.equal(result.response.status, 503);
+    assert.deepEqual(result.body, {
+      error: "Death statistics are temporarily unavailable."
+    });
+    assert.deepEqual(logs, ["Death statistics provider contract integrity check failed."]);
+    assert.doesNotMatch(JSON.stringify(result.body), /cutoff|migration|PLAYER_DEATH/u);
   } finally {
     console.error = originalError;
   }

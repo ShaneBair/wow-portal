@@ -64,6 +64,9 @@ function leaderboard(
   return {
     generatedAt: "2026-08-24T16:00:00.000Z",
     population,
+    coverage: {
+      comprehensiveSince: "2026-08-25T14:30:00.000Z"
+    },
     count: resultEntries.length,
     entries: resultEntries
   };
@@ -122,7 +125,7 @@ describe("death leaderboard states and requests", () => {
     renderPanel();
 
     expect(screen.getByText("Loading death statistics...")).toBeTruthy();
-    expect(screen.getByText("Creature and PvP deaths recorded since tracking began.")).toBeTruthy();
+    expect(screen.queryByText(/Known creature and PvP deaths before/u)).toBeNull();
   });
 
   it("shows the empty state", async () => {
@@ -143,6 +146,17 @@ describe("death leaderboard states and requests", () => {
 
     expect(await screen.findByText("Death statistics are temporarily unavailable.")).toBeTruthy();
     expect(screen.queryByRole("table")).toBeNull();
+  });
+
+  it("shows unavailable when coverage is missing or malformed", async () => {
+    installFetch(() => Promise.resolve(jsonResponse({
+      ...leaderboard(),
+      coverage: { comprehensiveSince: "not-a-timestamp" }
+    })));
+    renderPanel();
+
+    expect(await screen.findByText("Death statistics are temporarily unavailable.")).toBeTruthy();
+    expect(document.querySelector("time")).toBeNull();
   });
 
   it("shows unavailable when the API returns 503", async () => {
@@ -225,6 +239,11 @@ describe("death leaderboard table", () => {
     renderPanel();
 
     await screen.findByRole("table");
+    const coverageTime = document.querySelector("time");
+    expect(coverageTime?.getAttribute("datetime")).toBe("2026-08-25T14:30:00.000Z");
+    expect(document.querySelector(".deaths-scope")?.textContent).toContain(
+      "all recorded deaths since then, including environmental deaths."
+    );
     expect(characterOrder()).toEqual(["Zara", "Alpha", "Beta"]);
     expect(screen.getAllByText("Player")).toHaveLength(2);
     expect(screen.getByText("Bot")).toBeTruthy();
