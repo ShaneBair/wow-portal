@@ -35,10 +35,11 @@ test("serves only allowlisted browser routes from the client output", async () =
   const baseUrl = `http://127.0.0.1:${port}`;
 
   try {
-    for (const route of ["/", "/stats", "/stats?population=bots"]) {
+    for (const route of ["/", "/stats", "/stats?population=bots", "/login", "/boosts"]) {
       const response = await fetch(`${baseUrl}${route}`);
       const body = await response.text();
       assert.equal(response.status, 200);
+      assert.equal(response.headers.get("referrer-policy"), "no-referrer");
       assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/u);
       assert.match(body, new RegExp(ENTRY_MARKER, "u"));
     }

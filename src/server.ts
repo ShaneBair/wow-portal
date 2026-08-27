@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { createApp } from "./app.js";
+import { closePortalDatabasePool } from "./services/portal-database.js";
 import { closeStatsDatabasePool } from "./services/stats-database.js";
 
 const app = createApp();
@@ -19,10 +20,15 @@ function shutdown(signal: NodeJS.Signals): void {
   shuttingDown = true;
   console.log(`Received ${signal}; shutting down.`);
   server.close(async (error) => {
-    try {
-      await closeStatsDatabasePool();
-    } catch {
+    const [statsResult, portalResult] = await Promise.allSettled([
+      closeStatsDatabasePool(),
+      closePortalDatabasePool()
+    ]);
+    if (statsResult.status === "rejected") {
       console.error("Failed to close the statistics database pool cleanly.");
+    }
+    if (portalResult.status === "rejected") {
+      console.error("Failed to close the portal database pool cleanly.");
     }
 
     process.exitCode = error ? 1 : 0;

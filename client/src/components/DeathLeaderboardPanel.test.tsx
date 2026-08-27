@@ -95,7 +95,12 @@ function renderPanel(path = "/stats?population=players") {
 }
 
 function installFetch(implementation: typeof fetch): FetchMock {
-  const mock = vi.fn<typeof fetch>(implementation);
+  const mock = vi.fn<typeof fetch>((input, init) => {
+    if (requestUrl(input) === "/api/status") {
+      return Promise.resolve(jsonResponse({ online: true }));
+    }
+    return implementation(input, init);
+  });
   vi.stubGlobal("fetch", mock);
   return mock;
 }
@@ -178,10 +183,15 @@ describe("death leaderboard states and requests", () => {
     const { queryClient } = renderPanel("/stats?population=all");
 
     await screen.findByText("No recorded deaths for this population yet.");
-    expect(requestUrl(fetchMock.mock.calls[0]?.[0] as RequestInfo)).toBe(
+    const deathCall = fetchMock.mock.calls.find(([input]) =>
+      requestUrl(input).startsWith("/api/stats/deaths?")
+    );
+    expect(requestUrl(deathCall?.[0] as RequestInfo)).toBe(
       "/api/stats/deaths?population=all"
     );
-    expect(queryClient.getQueryCache().getAll().map((query) => query.queryKey)).toEqual([
+    expect(queryClient.getQueryCache().getAll().map((query) => query.queryKey).filter(
+      (key) => key[0] === "stats"
+    )).toEqual([
       ["stats", "deaths", "all"]
     ]);
   });
@@ -202,8 +212,12 @@ describe("death leaderboard states and requests", () => {
 
     expect(await screen.findByText("Loading death statistics...")).toBeTruthy();
     expect(screen.queryByText("Zara")).toBeNull();
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(queryClient.getQueryCache().getAll().map((query) => query.queryKey)).toEqual([
+    expect(fetchMock.mock.calls.filter(([input]) =>
+      requestUrl(input).startsWith("/api/stats/deaths?")
+    )).toHaveLength(2);
+    expect(queryClient.getQueryCache().getAll().map((query) => query.queryKey).filter(
+      (key) => key[0] === "stats"
+    )).toEqual([
       ["stats", "deaths", "players"],
       ["stats", "deaths", "all"]
     ]);

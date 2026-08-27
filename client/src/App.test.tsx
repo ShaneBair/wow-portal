@@ -34,6 +34,8 @@ const emptyDeaths = {
   entries: []
 };
 
+const anonymousSession = { authenticated: false };
+
 type FetchMock = ReturnType<typeof vi.fn<typeof fetch>>;
 
 interface Deferred<T> {
@@ -75,6 +77,9 @@ function installFetchMock(options: {
   status?: () => Promise<Response>;
   roster?: () => Promise<Response>;
   deaths?: () => Promise<Response>;
+  session?: () => Promise<Response>;
+  login?: () => Promise<Response>;
+  logout?: () => Promise<Response>;
   registration?: () => Promise<Response>;
 } = {}): FetchMock {
   const fetchMock = vi.fn<typeof fetch>((input) => {
@@ -90,6 +95,20 @@ function installFetchMock(options: {
 
     if (path.startsWith("/api/stats/deaths?")) {
       return options.deaths?.() ?? Promise.resolve(jsonResponse(emptyDeaths));
+    }
+
+    if (path === "/api/auth/session") {
+      return options.session?.() ?? Promise.resolve(jsonResponse(anonymousSession));
+    }
+
+    if (path === "/api/auth/login") {
+      return options.login?.() ?? Promise.resolve(jsonResponse({
+        error: "The account name or password is incorrect."
+      }, 401));
+    }
+
+    if (path === "/api/auth/logout") {
+      return options.logout?.() ?? Promise.resolve(new Response(null, { status: 204 }));
     }
 
     if (path === "/api/register") {
@@ -129,14 +148,15 @@ function renderRoute(path = "/") {
   return { ...result, router };
 }
 
-function expectCurrentNavigationLink(name: "Home" | "Stats") {
+function expectCurrentNavigationLink(name: "Home" | "Stats" | "Boosts") {
   const navigation = screen.getByRole("navigation", { name: "Primary" });
   const links = within(navigation).getAllByRole("link");
   const currentLinks = links.filter((link) => link.getAttribute("aria-current") === "page");
 
   expect(links.map((link) => ({ name: link.textContent, href: link.getAttribute("href") }))).toEqual([
     { name: "Home", href: "/" },
-    { name: "Stats", href: "/stats" }
+    { name: "Stats", href: "/stats" },
+    { name: "Boosts", href: "/boosts" }
   ]);
   expect(currentLinks).toHaveLength(1);
   expect(currentLinks[0]?.textContent).toBe(name);
@@ -173,7 +193,7 @@ describe("application routes", () => {
     expectCurrentNavigationLink("Stats");
     await waitFor(() => expect(document.title).toBe("Stats | DaBoysZeroth"));
     await screen.findByText("No recorded deaths for this population yet.");
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it("keeps Stats current when query parameters are present", async () => {
@@ -182,7 +202,7 @@ describe("application routes", () => {
 
     expectCurrentNavigationLink("Stats");
     await screen.findByText("No recorded deaths for this population yet.");
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it("navigates through links and browser history with matching titles and active states", async () => {
@@ -198,7 +218,7 @@ describe("application routes", () => {
     expectCurrentNavigationLink("Stats");
     await waitFor(() => expect(document.title).toBe("Stats | DaBoysZeroth"));
     await screen.findByText("No recorded deaths for this population yet.");
-    expect(fetchMock).toHaveBeenCalledTimes(homeRequestCount + 1);
+    expect(fetchMock).toHaveBeenCalledTimes(homeRequestCount + 2);
 
     await act(async () => {
       await router.navigate(-1);
@@ -215,7 +235,7 @@ describe("application routes", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Stats" })).toBeTruthy();
     expectCurrentNavigationLink("Stats");
     await waitFor(() => expect(document.title).toBe("Stats | DaBoysZeroth"));
-    expect(fetchMock).toHaveBeenCalledTimes(requestCountBeforeForward);
+    expect(fetchMock).toHaveBeenCalledTimes(requestCountBeforeForward + 1);
   });
 
   it("renders a client-side not-found page for an unmatched route", async () => {
@@ -227,7 +247,7 @@ describe("application routes", () => {
     expect(screen.getByRole("navigation", { name: "Primary" })).toBeTruthy();
     expect(screen.queryAllByRole("link", { current: "page" })).toHaveLength(0);
     await waitFor(() => expect(document.title).toBe("Page Not Found | DaBoysZeroth"));
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("does not render or initialize the Stats population filter on Home", () => {

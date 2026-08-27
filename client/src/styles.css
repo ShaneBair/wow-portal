@@ -32,12 +32,19 @@ input:focus-visible {
   padding: 72px 0;
 }
 
+.shell-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 36px;
+}
+
 .primary-navigation {
   display: flex;
   width: max-content;
   max-width: 100%;
   gap: 6px;
-  margin-bottom: 36px;
   padding: 6px;
   border: 1px solid #252d39;
   border-radius: 14px;
@@ -74,6 +81,54 @@ input:focus-visible {
 .primary-navigation a:focus-visible {
   outline: 3px solid #8eb4ff;
   outline-offset: 2px;
+}
+
+.auth-actions {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 10px;
+  color: #b9c2cf;
+  font-size: .9rem;
+}
+
+.auth-actions a {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  border: 1px solid #3b4656;
+  border-radius: 10px;
+  padding: 9px 14px;
+  text-decoration: none;
+}
+
+.auth-actions a:hover,
+.auth-actions a[aria-current="page"] {
+  background: #171e28;
+  color: #f4f6f8;
+}
+
+.auth-account-name {
+  max-width: 14rem;
+  overflow-wrap: anywhere;
+  color: #dbe2eb;
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-weight: 700;
+}
+
+.auth-logout {
+  width: auto;
+  min-height: 44px;
+  padding: 9px 14px;
+}
+
+.auth-message {
+  margin: -24px 0 28px;
+  text-align: right;
+}
+
+.login-panel {
+  max-width: 520px;
 }
 
 .hero {
@@ -480,13 +535,27 @@ code {
 }
 
 @media (max-width: 760px) {
+  .shell-header {
+    display: block;
+    margin-bottom: 28px;
+  }
+
   .primary-navigation {
     width: 100%;
-    margin-bottom: 28px;
   }
 
   .primary-navigation a {
     flex: 1;
+    padding-inline: 10px;
+  }
+
+  .auth-actions {
+    justify-content: flex-end;
+    margin-top: 10px;
+  }
+
+  .auth-message {
+    margin-top: -18px;
   }
 
   .stats-population-options {

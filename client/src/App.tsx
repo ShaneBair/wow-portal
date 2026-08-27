@@ -1,17 +1,29 @@
 import { Route, Routes } from "react-router";
+import { AuthProvider } from "./auth/auth-context.js";
+import { ProtectedRoute } from "./auth/ProtectedRoute.js";
 import { AppShell } from "./components/AppShell.js";
+import { BoostsPage } from "./pages/BoostsPage.js";
 import { HomePage } from "./pages/HomePage.js";
+import { LoginPage } from "./pages/LoginPage.js";
 import { NotFoundPage } from "./pages/NotFoundPage.js";
 import { StatsPage } from "./pages/StatsPage.js";
 
 export function App() {
   return (
-    <Routes>
-      <Route element={<AppShell />}>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/stats" element={<StatsPage />} />
-        <Route path="*" element={<NotFoundPage />} />
-      </Route>
-    </Routes>
+    <AuthProvider>
+      <Routes>
+        <Route element={<AppShell />}>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/stats" element={<StatsPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/boosts" element={(
+            <ProtectedRoute returnTo="/boosts">
+              <BoostsPage />
+            </ProtectedRoute>
+          )} />
+          <Route path="*" element={<NotFoundPage />} />
+        </Route>
+      </Routes>
+    </AuthProvider>
   );
 }

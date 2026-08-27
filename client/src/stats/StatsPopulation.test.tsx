@@ -200,7 +200,9 @@ describe("Stats population query contract", () => {
     expect(screen.queryByText("Players result")).toBeNull();
     expect(calls.map((call) => call.population)).toEqual(["players", "all"]);
     expect(calls.every((call) => call.signal instanceof AbortSignal)).toBe(true);
-    expect(queryClient.getQueryCache().getAll().map((query) => query.queryKey)).toEqual([
+    expect(queryClient.getQueryCache().getAll().map((query) => query.queryKey).filter(
+      (key) => key[0] === "stats"
+    )).toEqual([
       ["stats", "deaths", "players"],
       ["stats", "deaths", "all"]
     ]);

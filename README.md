@@ -15,6 +15,7 @@ Node.js 22.22.2 or newer is required by the locked frontend toolchain.
 - Server online/offline status
 - Human-only online player roster with a short-lived server-side cache
 - Player/Bot-filtered deaths leaderboard with comprehensive post-cutover coverage
+- Game-account login with bounded portal sessions and protected-route support
 - Connection instructions
 - Registration rate limiting
 - Docker deployment on the existing AzerothCore network
@@ -98,6 +99,31 @@ The deaths leaderboard reads `mod_player_stats_events`, `mod_player_stats_migrat
 Its dedicated database user needs `SELECT` on those four tables only. The canonical death
 provider migration must be deployed and verified before deploying this portal version; invalid
 or missing cutover metadata causes `GET /api/stats/deaths` to fail closed with `503`.
+
+## Portal authentication
+
+Portal login verifies the game account's AzerothCore SRP6 salt and verifier through a separate,
+least-privilege MariaDB user. It never sends player passwords through SOAP and does not create an
+authserver/game session. Sessions are opaque, process-local, idle for at most 30 minutes, expire
+absolutely after eight hours, and are invalidated by a portal restart.
+
+Configure the `PORTAL_DB_*` schema settings and `PORTAL_PUBLIC_ORIGIN` from `.env.example`.
+The database user needs column-level `SELECT` access for `account.id`, `account.username`,
+`account.salt`, `account.verifier`, and `account.totp_secret`, plus the account-ban columns needed
+to determine whether an active ban exists. It must not have write access to AzerothCore schemas.
+The characters and portal-state schema settings establish the shared integration boundary for
+future authenticated features; authentication does not mutate either schema.
+
+`PORTAL_PUBLIC_ORIGIN` must exactly match the browser's origin. Production requires HTTPS and
+uses a `Secure`, HTTP-only, host-only cookie. Local Vite development may use
+`http://localhost:5173`; non-loopback plain HTTP is rejected. The existing one-hop proxy trust
+must be verified against the real tunnel/reverse-proxy topology before production login is
+enabled.
+
+Before enabling login, verify the fabricated SRP6 test vector against the exact deployed
+AzerothCore/Playerbots revision, then test with a dedicated non-privileged account. Accounts with
+an active account ban or configured TOTP fail closed. Existing Home, registration, status, roster,
+and Stats behavior remains public.
 
 ## Verification
 
