@@ -288,7 +288,8 @@ label {
   color: #bec6d2;
 }
 
-input {
+input,
+select {
   display: block;
   width: 100%;
   margin-top: 7px;
@@ -298,6 +299,17 @@ input {
   background: #0c1118;
   color: white;
   font: inherit;
+}
+
+select {
+  min-height: 48px;
+}
+
+input:focus-visible,
+select:focus-visible,
+button:focus-visible {
+  outline: 3px solid #8eb4ff;
+  outline-offset: 2px;
 }
 
 button {
@@ -312,7 +324,7 @@ button {
 }
 
 button:disabled {
-  cursor: wait;
+  cursor: not-allowed;
   opacity: .7;
 }
 
@@ -347,6 +359,46 @@ code {
 
 .route-placeholder p {
   margin: 0;
+}
+
+.boost-character-panel {
+  margin-bottom: 20px;
+}
+
+.boost-character-panel h2,
+.boost-card h2 {
+  margin-bottom: 8px;
+}
+
+.boost-character-panel label,
+.boost-card label {
+  max-width: 620px;
+}
+
+.boost-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 520px));
+  gap: 20px;
+}
+
+.boost-card > p {
+  color: #aeb7c4;
+}
+
+.field-help {
+  margin: 9px 0 16px;
+  color: #9da8b7;
+  font-size: .86rem;
+  line-height: 1.5;
+}
+
+.boost-card .message {
+  margin-top: 14px;
+}
+
+.boost-card .message p {
+  margin: 8px 0 0;
+  overflow-wrap: anywhere;
 }
 
 .stats-controls {

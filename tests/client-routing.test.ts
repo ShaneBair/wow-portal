@@ -52,6 +52,15 @@ test("serves only allowlisted browser routes from the client output", async () =
     assert.equal(healthResponse.status, 200);
     assert.deepEqual(await healthResponse.json(), { ok: true });
 
+    const malformedBoost = await fetch(`${baseUrl}/api/boosts/money`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{"
+    });
+    assert.equal(malformedBoost.status, 400);
+    assert.equal(malformedBoost.headers.get("cache-control"), "no-store");
+    assert.deepEqual(await malformedBoost.json(), { error: "Request body must be valid JSON." });
+
     for (const route of ["/api/does-not-exist", "/missing-asset.js", "/not-allowlisted"]) {
       const response = await fetch(`${baseUrl}${route}`);
       const body = await response.text();

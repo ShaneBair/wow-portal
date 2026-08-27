@@ -16,6 +16,7 @@ Node.js 22.22.2 or newer is required by the locked frontend toolchain.
 - Human-only online player roster with a short-lived server-side cache
 - Player/Bot-filtered deaths leaderboard with comprehensive post-cutover coverage
 - Game-account login with bounded portal sessions and protected-route support
+- Authenticated character boosts with durable, idempotent Free Money requests
 - Connection instructions
 - Registration rate limiting
 - Docker deployment on the existing AzerothCore network
@@ -124,6 +125,25 @@ Before enabling login, verify the fabricated SRP6 test vector against the exact 
 AzerothCore/Playerbots revision, then test with a dedicated non-privileged account. Accounts with
 an active account ban or configured TOTP fail closed. Existing Home, registration, status, roster,
 and Stats behavior remains public.
+
+## Player boosts
+
+The protected `/boosts` page lists only non-deleted characters owned by the authenticated
+account. Free Money uses AzerothCore's `send money` command and durable request state; it never
+writes character balances or AzerothCore mail tables directly.
+
+Before enabling it, apply `migrations/001_create_money_boost_requests.sql` to the configured
+portal-state schema. Grant the portal user `SELECT`, `INSERT`, and `UPDATE` on that table,
+column-scoped `SELECT` for `characters.guid`, `account`, `name`, `level`, `race`, `class`, and
+`deleteInfos_Name`, and column-scoped `SELECT` for `mail.id`, `receiver`, `subject`, `body`, and
+`money`. Do not grant writes to AzerothCore schemas.
+
+Keep `BOOST_MONEY_ENABLED=false` until the deployed Playerbots/AzerothCore revision's exact
+`send money` success output, permission, offline delivery, amount range, replay behavior, and mail
+reconciliation have been verified with a dedicated test character. The other `BOOST_MONEY_*`
+settings define the enforced per-request and per-account UTC-day limits. Retain request rows for
+at least the daily window; the current operator policy target is 90 days, and cleanup must never
+delete AzerothCore mail.
 
 ## Verification
 

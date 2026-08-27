@@ -14,7 +14,7 @@
     "build:server": "tsc",
     "build:client": "tsc -p client/tsconfig.json && vite build --config vite.config.ts",
     "test": "npm run test:server && npm run test:client",
-    "test:server": "tsc -p tsconfig.test.json && node --test dist-test/tests/azerothcore.test.js dist-test/tests/portal-authentication.test.js dist-test/tests/auth-route.test.js dist-test/tests/online-roster.test.js dist-test/tests/online-players-route.test.js dist-test/tests/client-routing.test.js dist-test/tests/death-leaderboard.test.js dist-test/tests/stats-deaths-route.test.js",
+    "test:server": "tsc -p tsconfig.test.json && node --test dist-test/tests/azerothcore.test.js dist-test/tests/portal-authentication.test.js dist-test/tests/auth-route.test.js dist-test/tests/player-boosts.test.js dist-test/tests/boosts-route.test.js dist-test/tests/online-roster.test.js dist-test/tests/online-players-route.test.js dist-test/tests/client-routing.test.js dist-test/tests/death-leaderboard.test.js dist-test/tests/stats-deaths-route.test.js",
     "test:client": "vitest run --config vite.config.ts",
     "start": "node dist/server.js"
   },

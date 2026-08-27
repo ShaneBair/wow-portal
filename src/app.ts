@@ -1,8 +1,9 @@
-import express, { type Express } from "express";
+import express, { type ErrorRequestHandler, type Express } from "express";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import onlinePlayersRouter from "./routes/online-players.js";
 import authRouter from "./routes/auth.js";
+import boostsRouter from "./routes/boosts.js";
 import registerRouter from "./routes/register.js";
 import statsDeathsRouter from "./routes/stats-deaths.js";
 import statusRouter from "./routes/status.js";
@@ -28,8 +29,25 @@ export function createApp(options: CreateAppOptions = {}): Express {
 
   app.use(express.json({ limit: "16kb" }));
   app.use(express.urlencoded({ extended: false, limit: "16kb" }));
+  const rejectInvalidBody: ErrorRequestHandler = (error, request, response, next) => {
+    const type = typeof error === "object" && error !== null && "type" in error
+      ? String((error as { type?: unknown }).type)
+      : "";
+    if (
+      request.path.startsWith("/api/") &&
+      (type === "entity.parse.failed" || type === "entity.too.large")
+    ) {
+      if (request.path.startsWith("/api/boosts")) {
+        response.set("Cache-Control", "no-store");
+      }
+      return response.status(400).json({ error: "Request body must be valid JSON." });
+    }
+    next(error);
+  };
+  app.use(rejectInvalidBody);
 
   app.use(authRouter);
+  app.use(boostsRouter);
   app.use(registerRouter);
   app.use(statusRouter);
   app.use(onlinePlayersRouter);
