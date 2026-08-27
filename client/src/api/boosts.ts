@@ -16,9 +16,19 @@ export interface MoneyBoostLimits {
   dailyRequestLimit: number;
 }
 
+export interface PortableHolesBoostMetadata {
+  enabled: boolean;
+  name: "Hole Lotta Storage";
+  itemName: "Portable Hole";
+  itemCount: 4;
+  slotsPerBag: 24;
+  repeatable: true;
+}
+
 export interface BoostOverview {
   characters: BoostCharacter[];
   money: MoneyBoostLimits;
+  portableHoles: PortableHolesBoostMetadata;
 }
 
 export interface SendMoneyInput {
@@ -33,6 +43,14 @@ export interface SendMoneyResult {
   status: "sent";
   message: string;
 }
+
+export interface SendPortableHolesInput {
+  requestId: string;
+  characterId: string;
+  csrfToken: string;
+}
+
+export type SendPortableHolesResult = SendMoneyResult;
 
 export class BoostApiError extends PortalApiError {
   constructor(
@@ -92,18 +110,30 @@ function parseCharacter(value: unknown): BoostCharacter | undefined {
 }
 
 function parseOverview(value: unknown): BoostOverview | undefined {
-  if (!isRecord(value) || !Array.isArray(value.characters) || !isRecord(value.money)) {
+  if (
+    !isRecord(value) ||
+    !Array.isArray(value.characters) ||
+    !isRecord(value.money) ||
+    !isRecord(value.portableHoles)
+  ) {
     return undefined;
   }
   const characters = value.characters.map(parseCharacter);
   const money = value.money;
+  const portableHoles = value.portableHoles;
   if (
     characters.some((character) => character === undefined) ||
     typeof money.enabled !== "boolean" ||
     !isSafePositiveInteger(money.minimumGold) ||
     !isSafePositiveInteger(money.maximumGoldPerRequest) ||
     !isSafePositiveInteger(money.dailyGoldLimit) ||
-    !isSafePositiveInteger(money.dailyRequestLimit)
+    !isSafePositiveInteger(money.dailyRequestLimit) ||
+    typeof portableHoles.enabled !== "boolean" ||
+    portableHoles.name !== "Hole Lotta Storage" ||
+    portableHoles.itemName !== "Portable Hole" ||
+    portableHoles.itemCount !== 4 ||
+    portableHoles.slotsPerBag !== 24 ||
+    portableHoles.repeatable !== true
   ) {
     return undefined;
   }
@@ -115,6 +145,14 @@ function parseOverview(value: unknown): BoostOverview | undefined {
       maximumGoldPerRequest: money.maximumGoldPerRequest,
       dailyGoldLimit: money.dailyGoldLimit,
       dailyRequestLimit: money.dailyRequestLimit
+    },
+    portableHoles: {
+      enabled: portableHoles.enabled,
+      name: portableHoles.name,
+      itemName: portableHoles.itemName,
+      itemCount: portableHoles.itemCount,
+      slotsPerBag: portableHoles.slotsPerBag,
+      repeatable: portableHoles.repeatable
     }
   };
 }
@@ -190,4 +228,57 @@ export async function sendMoneyBoost(input: SendMoneyInput): Promise<SendMoneyRe
     );
   }
   return { requestId: body.requestId, status: "sent", message: body.message };
+}
+
+export async function sendPortableHolesBoost(
+  input: SendPortableHolesInput
+): Promise<SendPortableHolesResult> {
+  let response: Response;
+  const unknownMessage =
+    "Delivery could not be confirmed and may already have arrived. Check your mail before sending another bundle.";
+  try {
+    response = await fetch("/api/boosts/portable-holes", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-Token": input.csrfToken
+      },
+      credentials: "same-origin",
+      body: JSON.stringify({
+        requestId: input.requestId,
+        characterId: input.characterId
+      })
+    });
+  } catch {
+    throw new BoostApiError(unknownMessage, 0, "unknown", input.requestId);
+  }
+
+  let body: unknown;
+  try {
+    body = await response.json() as unknown;
+  } catch {
+    throw new BoostApiError(unknownMessage, response.status, "unknown", input.requestId);
+  }
+  if (!response.ok) {
+    const status = isRecord(body) && (body.status === "pending" || body.status === "unknown")
+      ? body.status
+      : undefined;
+    const requestId = isRecord(body) && typeof body.requestId === "string" ? body.requestId : undefined;
+    throw new BoostApiError(
+      readPublicError(body, "Bags could not be sent. Try again later."),
+      response.status,
+      status,
+      requestId
+    );
+  }
+  if (
+    !isRecord(body) ||
+    body.requestId !== input.requestId ||
+    body.status !== "sent" ||
+    typeof body.message !== "string" ||
+    body.message.length > 256
+  ) {
+    throw new BoostApiError(unknownMessage, response.status, "unknown", input.requestId);
+  }
+  return { requestId: input.requestId, status: "sent", message: body.message };
 }

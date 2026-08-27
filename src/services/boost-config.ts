@@ -11,6 +11,10 @@ export interface MoneyBoostConfig {
   dailyRequestLimit: number;
 }
 
+export interface PortableHolesBoostConfig {
+  enabled: boolean;
+}
+
 export class BoostConfigurationError extends Error {
   constructor(message: string) {
     super(message);
@@ -18,7 +22,7 @@ export class BoostConfigurationError extends Error {
   }
 }
 
-function readEnabled(value: string | undefined): boolean {
+function readEnabled(value: string | undefined, key: string): boolean {
   const normalized = value?.trim().toLowerCase();
   if (!normalized || normalized === "false") {
     return false;
@@ -26,7 +30,7 @@ function readEnabled(value: string | undefined): boolean {
   if (normalized === "true") {
     return true;
   }
-  throw new BoostConfigurationError("BOOST_MONEY_ENABLED must be true or false.");
+  throw new BoostConfigurationError(`${key} must be true or false.`);
 }
 
 function readPositiveInteger(
@@ -69,10 +73,21 @@ export function readMoneyBoostConfig(
   );
 
   return {
-    enabled: readEnabled(environment.BOOST_MONEY_ENABLED),
+    enabled: readEnabled(environment.BOOST_MONEY_ENABLED, "BOOST_MONEY_ENABLED"),
     minimumGold: 1,
     maximumGoldPerRequest,
     dailyGoldLimit,
     dailyRequestLimit
+  };
+}
+
+export function readPortableHolesBoostConfig(
+  environment: NodeJS.ProcessEnv = process.env
+): PortableHolesBoostConfig {
+  return {
+    enabled: readEnabled(
+      environment.BOOST_PORTABLE_HOLES_ENABLED,
+      "BOOST_PORTABLE_HOLES_ENABLED"
+    )
   };
 }

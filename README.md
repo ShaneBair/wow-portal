@@ -145,6 +145,13 @@ settings define the enforced per-request and per-account UTC-day limits. Retain 
 at least the daily window; the current operator policy target is 90 days, and cleanup must never
 delete AzerothCore mail.
 
+Hole Lotta Storage uses the same authenticated character selector to send a fixed bundle of four
+Portable Holes through AzerothCore's `send items` command. Apply
+`migrations/002_create_portable_hole_boost_requests.sql` and the grants documented in
+`migrations/README.md` before deployment. Keep `BOOST_PORTABLE_HOLES_ENABLED=false` until item
+51809, exact command output, offline four-attachment delivery, the narrow SOAP permission, replay,
+and ambiguous-result reconciliation have been verified against the deployed core revision.
+
 ## Verification
 
 Run strict server/client builds and mocked server/frontend tests without contacting the live

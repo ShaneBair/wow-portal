@@ -377,7 +377,7 @@ code {
 
 .boost-card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 520px));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
   gap: 20px;
 }
 
@@ -399,6 +399,37 @@ code {
 .boost-card .message p {
   margin: 8px 0 0;
   overflow-wrap: anywhere;
+}
+
+.boost-confirmation {
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid #394554;
+  border-radius: 12px;
+  background: #0c1118;
+}
+
+.boost-confirmation h3 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+
+.boost-confirmation p {
+  margin: 0 0 14px;
+  color: #c3ccd8;
+  line-height: 1.55;
+}
+
+.boost-confirmation-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 420px) {
+  .boost-confirmation-actions {
+    grid-template-columns: 1fr;
+  }
 }
 
 .stats-controls {

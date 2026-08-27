@@ -55,7 +55,7 @@ export interface MoneyBoostSuccess {
   created: boolean;
 }
 
-interface OwnedCharacter extends BoostCharacter {
+export interface OwnedBoostCharacter extends BoostCharacter {
   guid: number;
 }
 
@@ -142,11 +142,11 @@ function readDisplayName(value: unknown): string {
   return value;
 }
 
-export function mapOwnedCharacterRows(rows: unknown): OwnedCharacter[] {
+export function mapOwnedCharacterRows(rows: unknown): OwnedBoostCharacter[] {
   if (!Array.isArray(rows) || rows.length > 100) {
     throw new BoostDataError("Boost character result is invalid.");
   }
-  const mapped = rows.map((row): OwnedCharacter => {
+  const mapped = rows.map((row): OwnedBoostCharacter => {
     if (typeof row !== "object" || row === null || Array.isArray(row)) {
       throw new BoostDataError("Boost character row is invalid.");
     }
@@ -169,6 +169,25 @@ export function mapOwnedCharacterRows(rows: unknown): OwnedCharacter[] {
   return mapped;
 }
 
+export function isValidBoostRequestId(value: unknown): value is string {
+  return typeof value === "string" && UUID_V4.test(value);
+}
+
+export function parseBoostCharacterId(value: unknown): number | undefined {
+  if (typeof value !== "string" || !CHARACTER_ID.test(value)) {
+    return undefined;
+  }
+  const characterGuid = Number(value);
+  if (!Number.isSafeInteger(characterGuid) || characterGuid > MAX_CHARACTER_GUID) {
+    return undefined;
+  }
+  return characterGuid;
+}
+
+export function isSafeBoostCharacterName(value: string): boolean {
+  return SAFE_COMMAND_CHARACTER_NAME.test(value);
+}
+
 export function parseMoneyBoostInput(body: unknown, config: MoneyBoostConfig): MoneyBoostInput | undefined {
   if (typeof body !== "object" || body === null || Array.isArray(body)) {
     return undefined;
@@ -176,19 +195,14 @@ export function parseMoneyBoostInput(body: unknown, config: MoneyBoostConfig): M
   const source = body as Record<string, unknown>;
   if (
     Object.keys(source).some((key) => !["requestId", "characterId", "gold"].includes(key)) ||
-    typeof source.requestId !== "string" ||
-    !UUID_V4.test(source.requestId) ||
+    !isValidBoostRequestId(source.requestId) ||
     typeof source.characterId !== "string" ||
-    !CHARACTER_ID.test(source.characterId) ||
+    parseBoostCharacterId(source.characterId) === undefined ||
     typeof source.gold !== "number" ||
     !Number.isSafeInteger(source.gold) ||
     source.gold < config.minimumGold ||
     source.gold > config.maximumGoldPerRequest
   ) {
-    return undefined;
-  }
-  const characterGuid = Number(source.characterId);
-  if (!Number.isSafeInteger(characterGuid) || characterGuid > MAX_CHARACTER_GUID) {
     return undefined;
   }
   return {
@@ -207,7 +221,7 @@ export function goldToCopper(gold: number): number {
 }
 
 export function moneyMailBody(requestId: string): string {
-  if (!UUID_V4.test(requestId)) {
+  if (!isValidBoostRequestId(requestId)) {
     throw new BoostDataError("Boost request ID is invalid.");
   }
   return `${MAIL_BODY_PREFIX}${requestId}`;
@@ -218,7 +232,7 @@ export function buildSendMoneyCommand(
   requestId: string,
   copper: number
 ): string {
-  if (!SAFE_COMMAND_CHARACTER_NAME.test(characterName)) {
+  if (!isSafeBoostCharacterName(characterName)) {
     throw new BoostDataError("Boost character name is not safe for the compatible command parser.");
   }
   if (!Number.isSafeInteger(copper) || copper < MONEY_PER_GOLD || copper > 0x7fff_ffff) {
@@ -330,7 +344,7 @@ export class PlayerBoostService {
     if (!character || character.guid !== characterGuid) {
       throw new BoostRequestError("ownership", "That character is not available for this account.");
     }
-    if (!SAFE_COMMAND_CHARACTER_NAME.test(character.name)) {
+    if (!isSafeBoostCharacterName(character.name)) {
       throw new BoostRequestError("failed", "Gold cannot be sent to this character through the portal.");
     }
     const copper = goldToCopper(validatedInput.gold);
@@ -349,7 +363,7 @@ export class PlayerBoostService {
 
   private async handleReservation(
     reservation: ReserveMoneyBoostResult,
-    character: OwnedCharacter
+    character: OwnedBoostCharacter
   ): Promise<MoneyBoostSuccess> {
     if (reservation.kind === "conflict") {
       throw new BoostRequestError("conflict", "That request ID was already used for different details.");

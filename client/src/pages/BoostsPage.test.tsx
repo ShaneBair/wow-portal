@@ -22,6 +22,14 @@ const overview = {
     maximumGoldPerRequest: 10_000,
     dailyGoldLimit: 20_000,
     dailyRequestLimit: 5
+  },
+  portableHoles: {
+    enabled: true,
+    name: "Hole Lotta Storage",
+    itemName: "Portable Hole",
+    itemCount: 4,
+    slotsPerBag: 24,
+    repeatable: true
   }
 };
 
@@ -67,6 +75,7 @@ function renderBoosts(fetchImplementation: typeof fetch) {
 function standardFetch(options: {
   overview?: () => Promise<Response>;
   money?: (init?: RequestInit) => Promise<Response>;
+  portableHoles?: (init?: RequestInit) => Promise<Response>;
 } = {}): typeof fetch {
   return (input, init) => {
     const path = pathOf(input);
@@ -81,6 +90,13 @@ function standardFetch(options: {
         requestId,
         status: "sent",
         message: "500 gold was sent to Thalgrim by in-game mail."
+      }, 201));
+    }
+    if (path === "/api/boosts/portable-holes") {
+      return options.portableHoles?.(init) ?? Promise.resolve(jsonResponse({
+        requestId,
+        status: "sent",
+        message: "Four Portable Holes were sent to Thalgrim by in-game mail."
       }, 201));
     }
     return Promise.resolve(jsonResponse({ error: "Not found." }, 404));
@@ -100,6 +116,8 @@ describe("Boosts page", () => {
     await waitFor(() => expect(selector.value).toBe("42"));
     expect(screen.getByRole("option", { name: "Thalgrim — Level 80 Paladin" })).toBeTruthy();
     expect(screen.getByText(/1–10,000 whole gold per request/u)).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 2, name: "Hole Lotta Storage" })).toBeTruthy();
+    expect(screen.getByText(/four 24-slot Portable Holes/u)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Send gold" }).hasAttribute("disabled")).toBe(true);
     await waitFor(() => expect(document.title).toBe("Boosts | DaBoysZeroth"));
   });
@@ -142,6 +160,85 @@ describe("Boosts page", () => {
     expect(fetchMock.mock.calls.filter(([inputValue]) => pathOf(inputValue) === "/api/boosts/money")).toHaveLength(1);
   });
 
+  it("confirms the character and quantity, supports cancel, and restores focus", async () => {
+    renderBoosts(standardFetch());
+    const user = userEvent.setup();
+    const send = await screen.findByRole<HTMLButtonElement>("button", { name: "Send bags" });
+    await waitFor(() => expect(send.disabled).toBe(false));
+    await user.click(send);
+
+    expect(screen.getByRole("heading", { level: 3, name: "Confirm bag delivery" })).toBeTruthy();
+    expect(screen.getByText(/Send four 24-slot Portable Holes to Thalgrim/u)).toBeTruthy();
+    const confirm = screen.getByRole("button", { name: "Confirm" });
+    await waitFor(() => expect(document.activeElement).toBe(confirm));
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "Confirm bag delivery" })).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Send bags" })
+    ));
+  });
+
+  it("sends only request and character IDs and permits another confirmed bundle", async () => {
+    const calls: RequestInit[] = [];
+    const { fetchMock } = renderBoosts(standardFetch({
+      portableHoles: (init) => {
+        calls.push(init ?? {});
+        return Promise.resolve(jsonResponse({
+          requestId,
+          status: "sent",
+          message: "Four Portable Holes were sent to Thalgrim by in-game mail."
+        }, calls.length === 1 ? 201 : 200));
+      }
+    }));
+    const user = userEvent.setup();
+    const send = await screen.findByRole<HTMLButtonElement>("button", { name: "Send bags" });
+    await waitFor(() => expect(send.disabled).toBe(false));
+
+    await user.click(send);
+    await user.click(screen.getByRole("button", { name: "Confirm" }));
+    expect(await screen.findByText("Four Portable Holes were sent to Thalgrim by in-game mail.")).toBeTruthy();
+    expect(new Headers(calls[0]?.headers).get("X-CSRF-Token")).toBe(session.csrfToken);
+    expect(JSON.parse(String(calls[0]?.body))).toEqual({ requestId, characterId: "42" });
+
+    await user.click(screen.getByRole("button", { name: "Send bags" }));
+    await user.click(screen.getByRole("button", { name: "Confirm" }));
+    await waitFor(() => expect(fetchMock.mock.calls.filter(
+      ([inputValue]) => pathOf(inputValue) === "/api/boosts/portable-holes"
+    )).toHaveLength(2));
+  });
+
+  it("preserves an unknown delivery warning when the selected character changes", async () => {
+    renderBoosts(standardFetch({
+      portableHoles: () => Promise.resolve(jsonResponse({
+        requestId,
+        status: "unknown",
+        error: "Delivery could not be confirmed and may already have arrived. Check your mail before sending another bundle."
+      }, 503))
+    }));
+    const user = userEvent.setup();
+    const send = await screen.findByRole<HTMLButtonElement>("button", { name: "Send bags" });
+    await waitFor(() => expect(send.disabled).toBe(false));
+    await user.click(send);
+    await user.click(screen.getByRole("button", { name: "Confirm" }));
+
+    expect(await screen.findByText(/may already have arrived/u)).toBeTruthy();
+    expect(screen.getByText(requestId)).toBeTruthy();
+    await user.selectOptions(screen.getByLabelText("Choose a character"), "77");
+    expect(screen.getByText(/may already have arrived/u)).toBeTruthy();
+    expect(screen.getByText(requestId)).toBeTruthy();
+  });
+
+  it("cancels an unsubmitted bag confirmation when the character changes", async () => {
+    renderBoosts(standardFetch());
+    const user = userEvent.setup();
+    const send = await screen.findByRole<HTMLButtonElement>("button", { name: "Send bags" });
+    await waitFor(() => expect(send.disabled).toBe(false));
+    await user.click(send);
+    await user.selectOptions(screen.getByLabelText("Choose a character"), "77");
+    expect(screen.queryByRole("heading", { name: "Confirm bag delivery" })).toBeNull();
+  });
+
   it("shows and locks an unconfirmed request with its request ID", async () => {
     renderBoosts(standardFetch({
       money: () => Promise.resolve(jsonResponse({
@@ -167,11 +264,13 @@ describe("Boosts page", () => {
     const empty = renderBoosts(standardFetch({
       overview: () => Promise.resolve(jsonResponse({
         characters: [],
-        money: { ...overview.money, enabled: false }
+        money: { ...overview.money, enabled: false },
+        portableHoles: { ...overview.portableHoles, enabled: false }
       }))
     }));
     expect(await screen.findByText("This account does not have any characters yet.")).toBeTruthy();
     expect(screen.getByText("Free Money is currently disabled.")).toBeTruthy();
+    expect(screen.getByText("This boost is currently unavailable.")).toBeTruthy();
     empty.unmount();
 
     renderBoosts(standardFetch({
@@ -193,5 +292,19 @@ describe("Boosts page", () => {
     expect(await screen.findByRole("heading", { level: 1, name: "Log in" })).toBeTruthy();
     expect(router.state.location.pathname).toBe("/login");
     expect(router.state.location.search).toBe("?returnTo=%2Fboosts");
+  });
+
+  it("returns to Login when the session expires during bag delivery", async () => {
+    const { router } = renderBoosts(standardFetch({
+      portableHoles: () => Promise.resolve(jsonResponse({ error: "Log in to continue." }, 401))
+    }));
+    const user = userEvent.setup();
+    const send = await screen.findByRole<HTMLButtonElement>("button", { name: "Send bags" });
+    await waitFor(() => expect(send.disabled).toBe(false));
+    await user.click(send);
+    await user.click(screen.getByRole("button", { name: "Confirm" }));
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Log in" })).toBeTruthy();
+    expect(router.state.location.pathname).toBe("/login");
   });
 });

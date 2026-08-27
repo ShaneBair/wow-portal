@@ -6,6 +6,7 @@ import { createBoostsRouter } from "../src/routes/boosts.js";
 import { BoostMutationLimiter } from "../src/services/boost-mutation-limiter.js";
 import type { PortalHttpSecurityConfig } from "../src/services/auth-http.js";
 import { BoostRequestError, type MoneyBoostInput } from "../src/services/player-boosts.js";
+import type { PortableHolesInput } from "../src/services/portable-hole-boost.js";
 import { PortalSessionStore } from "../src/services/portal-sessions.js";
 
 const origin = "http://127.0.0.1:5173";
@@ -21,6 +22,14 @@ const limits = {
   maximumGoldPerRequest: 10_000,
   dailyGoldLimit: 20_000,
   dailyRequestLimit: 5
+};
+const portableHoles = {
+  enabled: true,
+  name: "Hole Lotta Storage" as const,
+  itemName: "Portable Hole" as const,
+  itemCount: 4 as const,
+  slotsPerBag: 24 as const,
+  repeatable: true as const
 };
 
 async function listen(server: Server): Promise<number> {
@@ -44,12 +53,20 @@ async function close(server: Server): Promise<void> {
 }
 
 interface TestService {
-  readConfig(): typeof limits;
+  readMoneyConfig(): typeof limits;
+  readPortableHolesConfig(): { enabled: boolean };
   getOverview(accountId: number): Promise<{
     characters: Array<{ id: string; name: string; level: number; race: string; class: string }>;
     money: typeof limits;
+    portableHoles: typeof portableHoles;
   }>;
   requestMoney(accountId: number, input: MoneyBoostInput): Promise<{
+    requestId: string;
+    status: "sent";
+    message: string;
+    created: boolean;
+  }>;
+  requestPortableHoles(accountId: number, input: PortableHolesInput): Promise<{
     requestId: string;
     status: "sent";
     message: string;
@@ -66,18 +83,26 @@ async function withBoostServer<T>(
   const sessions = new PortalSessionStore(Date.now, (size) => Buffer.alloc(size, randomValue++));
   const created = sessions.create({ accountId: 7, username: "TEST_USER" });
   const service: TestService = {
-    readConfig: () => limits,
+    readMoneyConfig: () => limits,
+    readPortableHolesConfig: () => ({ enabled: true }),
     getOverview: async (accountId) => {
       assert.equal(accountId, 7);
       return {
         characters: [{ id: "42", name: "Thalgrim", level: 80, race: "Dwarf", class: "Paladin" }],
-        money: limits
+        money: limits,
+        portableHoles
       };
     },
     requestMoney: async (accountId, input) => ({
       requestId: input.requestId,
       status: "sent",
       message: `${input.gold} gold was sent to Thalgrim by in-game mail.`,
+      created: accountId === 7
+    }),
+    requestPortableHoles: async (accountId, input) => ({
+      requestId: input.requestId,
+      status: "sent",
+      message: "Four Portable Holes were sent to Thalgrim by in-game mail.",
       created: accountId === 7
     }),
     ...serviceOverrides
@@ -101,6 +126,25 @@ async function withBoostServer<T>(
   } finally {
     await close(server);
   }
+}
+
+function postPortableHoles(
+  baseUrl: string,
+  authorization: { cookie: string; csrfToken: string },
+  overrides: RequestInit = {}
+): Promise<Response> {
+  return fetch(`${baseUrl}/api/boosts/portable-holes`, {
+    method: "POST",
+    ...overrides,
+    headers: {
+      "Content-Type": "application/json",
+      Origin: origin,
+      Cookie: authorization.cookie,
+      "X-CSRF-Token": authorization.csrfToken,
+      ...overrides.headers
+    },
+    body: overrides.body ?? JSON.stringify({ requestId, characterId: "42" })
+  });
 }
 
 function postMoney(
@@ -135,7 +179,8 @@ test("protects and returns the no-store character overview", async () => {
     assert.equal(response.headers.get("cache-control"), "no-store");
     assert.deepEqual(await response.json(), {
       characters: [{ id: "42", name: "Thalgrim", level: 80, race: "Dwarf", class: "Paladin" }],
-      money: limits
+      money: limits,
+      portableHoles
     });
   });
 });
@@ -213,12 +258,15 @@ test("maps ownership, replay conflict, and unknown delivery without leaking inte
   }
 });
 
-test("limits boost submissions to five per client minute", async () => {
+test("shares five boost submissions per client minute across both boost endpoints", async () => {
   await withBoostServer(async (baseUrl, authorization) => {
-    for (let attempt = 0; attempt < 5; attempt += 1) {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
       assert.equal((await postMoney(baseUrl, authorization)).status, 201);
     }
-    const limited = await postMoney(baseUrl, authorization);
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      assert.equal((await postPortableHoles(baseUrl, authorization)).status, 201);
+    }
+    const limited = await postPortableHoles(baseUrl, authorization);
     assert.equal(limited.status, 429);
     assert.deepEqual(await limited.json(), { error: "Too many boost submissions. Try again later." });
   });
@@ -235,7 +283,55 @@ test("fails closed without consuming the burst limit when Free Money is disabled
       now += 1;
     }
   }, {
-    readConfig: () => ({ ...limits, enabled: false })
+    readMoneyConfig: () => ({ ...limits, enabled: false })
+  }, limiter);
+});
+
+test("validates and sends only the server-owned Portable Hole contract", async () => {
+  const received: Array<[number, PortableHolesInput]> = [];
+  await withBoostServer(async (baseUrl, authorization) => {
+    assert.equal((await postPortableHoles(baseUrl, authorization, {
+      body: JSON.stringify({ requestId, characterId: "42", itemEntry: 51809 })
+    })).status, 400);
+    assert.equal((await postPortableHoles(baseUrl, authorization, {
+      body: JSON.stringify({ requestId, characterId: "42", count: 4 })
+    })).status, 400);
+
+    const response = await postPortableHoles(baseUrl, authorization);
+    assert.equal(response.status, 201);
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.deepEqual(await response.json(), {
+      requestId,
+      status: "sent",
+      message: "Four Portable Holes were sent to Thalgrim by in-game mail."
+    });
+    assert.deepEqual(received, [[7, { requestId, characterId: "42" }]]);
+  }, {
+    requestPortableHoles: async (accountId, input) => {
+      received.push([accountId, input]);
+      return {
+        requestId: input.requestId,
+        status: "sent",
+        message: "Four Portable Holes were sent to Thalgrim by in-game mail.",
+        created: true
+      };
+    }
+  });
+});
+
+test("fails Portable Holes closed before consuming the shared burst limit", async () => {
+  const limiter = new BoostMutationLimiter(() => 0);
+  await withBoostServer(async (baseUrl, authorization) => {
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      const response = await postPortableHoles(baseUrl, authorization);
+      assert.equal(response.status, 503);
+      assert.deepEqual(await response.json(), { error: "This boost is currently unavailable." });
+    }
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      assert.equal((await postMoney(baseUrl, authorization)).status, 201);
+    }
+  }, {
+    readPortableHolesConfig: () => ({ enabled: false })
   }, limiter);
 });
 
