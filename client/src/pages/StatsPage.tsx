@@ -24,16 +24,13 @@ export function StatsPage({ children }: { children?: ReactNode }) {
         <StatsPopulationFilter />
 
         <section className="stats-content" aria-label="Statistics content">
-          {children ?? <>
-            <section className="server-awards" aria-labelledby="serverAwardsHeading">
-              <h2 id="serverAwardsHeading">Server Awards</h2>
-              <div className="server-awards-grid">
-                <CompletionistPanel />
-                <ServerMvpPanel />
-              </div>
-            </section>
-            <DeathLeaderboardPanel />
-          </>}
+          <CompletionistPanel />
+        </section>
+        <section className="stats-content" aria-label="Statistics content">
+          <ServerMvpPanel />
+        </section>
+        <section className="stats-content" aria-label="Statistics content">
+          <DeathLeaderboardPanel />
         </section>
       </main>
     </StatsPopulationProvider>

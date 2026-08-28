@@ -157,15 +157,6 @@ export function ServerMvpPanel() {
       <span className="award-icon" aria-hidden="true">🏆</span>
       <div><h3 id="serverMvpHeading">Server MVP</h3><p>Most boss kills</p></div>
     </div>
-    {leaderboard?.coverage.firstRecordedAt ? <p className="award-scope">
-      Recorded boss killing blows from{" "}<time dateTime={leaderboard.coverage.firstRecordedAt}>
-        {formatTimestamp(leaderboard.coverage.firstRecordedAt)}
-      </time>{" "}onward. Pet kills credit the owner.
-    </p> : leaderboard ? <p className="award-scope">
-      No creature-kill coverage date is available. Pet kills credit the owner.
-    </p> : <p className="award-scope">
-      Recorded boss killing blows since creature tracking began. Pet kills credit the owner.
-    </p>}
     <p className="award-detail">
       Covers recognized creature-credit and world-boss entries. Spell-credit-only encounters are
       excluded unless independently boss-marked; this is killing-blow credit, not group participation.

@@ -527,6 +527,7 @@ code {
 
 .stats-content {
   min-height: 180px;
+  margin-bottom: 20px;
 }
 
 .server-awards {

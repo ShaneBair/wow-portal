@@ -1,6 +1,6 @@
 # Server MVP Boss-Kill Leaderboard
 
-Status: Implemented locally; operator verification required  
+Status: Deployed; production reader/configuration and live query plans verified, with controlled in-game kill scenarios pending
 Repository: `wow-portal`  
 Depends on: `specs/react-frontend-foundation.md`, `specs/site-navigation.md`, `specs/stats-population-filter.md`  
 Data contract owner: sibling `mod-player-statistics`  
@@ -496,6 +496,11 @@ Use fabricated database rows and mocked fetches. Automated tests must not query 
 9. Exercise tied-winner, empty, missing-world-grant, desktop, mobile, and keyboard states.
 10. Inspect browser responses and logs for creature entries, database details, or other prohibited fields.
 
+Progress recorded on August 28, 2026:
+
+- Completed: compatible-core constant and runtime-flag confirmation; exact column-scoped event, character, account, migration, encounter, and creature-template grants; real world-schema configuration; both population queries and `EXPLAIN` through the restricted production reader; automated tests and production build; successful Stats page and API responses; public-field inspection; and historical verification that ordinary/unrecognized creature kills are excluded while direct and pet-owner boss kills are recognized.
+- Still recommended as controlled in-game follow-up: observe one new ordinary kill, direct boss kill, pet boss kill, and non-killing party member across cache expiry; then exercise the remaining manual responsive, keyboard, unavailable-grant, and tie-state checks.
+
 ## Implemented Product Decisions
 
 1. `Server MVP` means boss killing blows rather than encounter participation for every group member.
@@ -505,6 +510,7 @@ Use fabricated database rows and mocked fetches. Automated tests must not query 
 
 The deployed compatible source currently defines:
 
+- `ENCOUNTER_CREDIT_KILL_CREATURE = 0` in `src/server/game/Maps/Map.h`;
 - `CREATURE_ELITE_WORLDBOSS = 3` in `src/server/shared/SharedDefines.h`;
 - `CREATURE_TYPE_FLAG_BOSS_MOB = 0x00000004` and uses it in `Creature::isWorldBoss()`;
 - `CREATURE_FLAG_EXTRA_DUNGEON_BOSS` as a runtime-only flag populated from kill-creature rows in `instance_encounters`.
