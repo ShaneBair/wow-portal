@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { StatsPage } from "../pages/StatsPage.js";
+import { DeathLeaderboardPanel } from "./DeathLeaderboardPanel.js";
 
 interface Deferred<T> {
   promise: Promise<T>;
@@ -83,7 +84,7 @@ function renderPanel(path = "/stats?population=players") {
     }
   });
   const router = createMemoryRouter(
-    [{ path: "/stats", element: <StatsPage /> }],
+    [{ path: "/stats", element: <StatsPage><DeathLeaderboardPanel /></StatsPage> }],
     { initialEntries: [path] }
   );
   const result = render(
@@ -190,7 +191,7 @@ describe("death leaderboard states and requests", () => {
       "/api/stats/deaths?population=all"
     );
     expect(queryClient.getQueryCache().getAll().map((query) => query.queryKey).filter(
-      (key) => key[0] === "stats"
+      (key) => key[0] === "stats" && key[1] === "deaths"
     )).toEqual([
       ["stats", "deaths", "all"]
     ]);
@@ -216,7 +217,7 @@ describe("death leaderboard states and requests", () => {
       requestUrl(input).startsWith("/api/stats/deaths?")
     )).toHaveLength(2);
     expect(queryClient.getQueryCache().getAll().map((query) => query.queryKey).filter(
-      (key) => key[0] === "stats"
+      (key) => key[0] === "stats" && key[1] === "deaths"
     )).toEqual([
       ["stats", "deaths", "players"],
       ["stats", "deaths", "all"]

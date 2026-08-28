@@ -6,6 +6,8 @@ import authRouter from "./routes/auth.js";
 import boostsRouter from "./routes/boosts.js";
 import registerRouter from "./routes/register.js";
 import statsDeathsRouter from "./routes/stats-deaths.js";
+import statsBossKillsRouter from "./routes/stats-boss-kills.js";
+import statsQuestCompletionsRouter from "./routes/stats-quest-completions.js";
 import statusRouter from "./routes/status.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -52,6 +54,8 @@ export function createApp(options: CreateAppOptions = {}): Express {
   app.use(statusRouter);
   app.use(onlinePlayersRouter);
   app.use(statsDeathsRouter);
+  app.use(statsBossKillsRouter);
+  app.use(statsQuestCompletionsRouter);
 
   app.get("/health", (_req, res) => {
     res.json({ ok: true });

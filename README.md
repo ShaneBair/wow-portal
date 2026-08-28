@@ -15,6 +15,8 @@ Node.js 22.22.2 or newer is required by the locked frontend toolchain.
 - Server online/offline status
 - Human-only online player roster with a short-lived server-side cache
 - Player/Bot-filtered deaths leaderboard with comprehensive post-cutover coverage
+- Completionist award for recorded quest completions, including repeatable-quest events
+- Server MVP award for recorded direct and pet-owner boss killing blows
 - Game-account login with bounded portal sessions and protected-route support
 - Authenticated character boosts with durable, idempotent Free Money requests
 - Connection instructions
@@ -100,6 +102,24 @@ The deaths leaderboard reads `mod_player_stats_events`, `mod_player_stats_migrat
 Its dedicated database user needs `SELECT` on those four tables only. The canonical death
 provider migration must be deployed and verified before deploying this portal version; invalid
 or missing cutover metadata causes `GET /api/stats/deaths` to fail closed with `503`.
+
+The Completionist award reuses that read-only connection and counts `QUEST_COMPLETE` event rows,
+with separate Player/Bot groups and independent population caches. Ensure the event-table grant
+includes column-level `SELECT` for `event_time`, `event_type`, `actor_guid`, `actor_is_bot`,
+`target_type`, `target_entry`, `target_guid`, `target_is_bot`, `value1`, `value2`, and `source`.
+No new table, database write, or portal-state migration is required. Before deployment, verify the
+module setting, run `EXPLAIN` with the deployed reader, and confirm ordinary, repeatable, and
+Playerbot-controlled quest completions against the live-compatible data contract.
+
+The Server MVP award adds `STATS_WORLD_DATABASE` and reuses the same read-only statistics
+connection. Its reader needs column-level `SELECT` for `instance_encounters.creditType` and
+`creditEntry`, plus `creature_template.entry`, `rank`, and `type_flags`; no world writes are
+required. The endpoint combines kill-creature encounter credits with rank-3 and boss-type-flag
+creatures, then counts direct and pet-owner killing blows. Spell-credit-only encounters are not
+counted unless their creature is independently boss-marked. A missing world setting or grant makes
+only `GET /api/stats/boss-kills` return `503`. Before deployment, confirm the three classification
+constants against the deployed core, run both population queries and `EXPLAIN` as the reader, and
+verify ordinary, direct, pet-owner, and non-killing-party-member cases against live-compatible data.
 
 ## Portal authentication
 

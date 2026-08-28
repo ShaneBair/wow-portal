@@ -13,6 +13,10 @@ export interface StatsDatabaseConfig {
   authDatabase: string;
 }
 
+export interface StatsWorldDatabaseConfig {
+  worldDatabase: string;
+}
+
 export class StatsDatabaseConfigurationError extends Error {
   constructor(message: string) {
     super(message);
@@ -71,6 +75,17 @@ export function readStatsDatabaseConfig(
     password: requireValue(environment, "STATS_DB_PASSWORD"),
     charactersDatabase: requireDatabaseIdentifier(environment, "STATS_CHARACTERS_DATABASE"),
     authDatabase: requireDatabaseIdentifier(environment, "STATS_AUTH_DATABASE")
+  };
+}
+
+export function readStatsWorldDatabaseConfig(
+  environment: NodeJS.ProcessEnv = process.env
+): StatsWorldDatabaseConfig {
+  return {
+    worldDatabase: validateStatsDatabaseIdentifier(
+      requireValue(environment, "STATS_WORLD_DATABASE"),
+      "STATS_WORLD_DATABASE"
+    )
   };
 }
 

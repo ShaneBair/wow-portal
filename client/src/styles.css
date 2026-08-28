@@ -529,6 +529,71 @@ code {
   min-height: 180px;
 }
 
+.server-awards {
+  margin-bottom: 20px;
+}
+
+.server-awards > h2 {
+  margin: 0 0 12px;
+  color: #dbe2eb;
+  font-size: 1rem;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.server-awards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+  gap: 20px;
+}
+
+.award-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.award-heading h3,
+.award-heading p {
+  margin: 0;
+}
+
+.award-heading h3 {
+  font-size: 1.35rem;
+}
+
+.award-heading p {
+  margin-top: 3px;
+  color: #aeb7c4;
+}
+
+.award-icon {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.award-scope {
+  margin: 18px 0 0;
+  color: #dbe2eb;
+  line-height: 1.55;
+}
+
+.award-detail {
+  margin: 8px 0 0;
+  color: #9da8b7;
+  font-size: .88rem;
+  line-height: 1.55;
+}
+
+.award-winner {
+  margin: 18px 0 0;
+  border-left: 3px solid #d8b968;
+  padding: 10px 12px;
+  background: #111720;
+  color: #f1e5bd;
+  line-height: 1.5;
+}
+
 .deaths-panel h2 {
   margin-bottom: 8px;
 }
@@ -544,25 +609,35 @@ code {
   font-size: .88rem;
 }
 
-.deaths-table {
+.deaths-table,
+.completionist-table,
+.boss-kill-table {
   width: 100%;
   border-collapse: collapse;
   font-size: .9rem;
 }
 
 .deaths-table th,
-.deaths-table td {
+.deaths-table td,
+.completionist-table th,
+.completionist-table td,
+.boss-kill-table th,
+.boss-kill-table td {
   padding: 13px 10px;
   border-bottom: 1px solid #29313d;
   text-align: left;
   vertical-align: middle;
 }
 
-.deaths-table th {
+.deaths-table th,
+.completionist-table th,
+.boss-kill-table th {
   padding: 0;
 }
 
-.deaths-table tbody tr:last-child td {
+.deaths-table tbody tr:last-child td,
+.completionist-table tbody tr:last-child td,
+.boss-kill-table tbody tr:last-child td {
   border-bottom: 0;
 }
 
@@ -617,6 +692,20 @@ code {
   font-variant-numeric: tabular-nums;
 }
 
+.completion-total {
+  color: #f1e5bd;
+  font-size: 1.02rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.boss-kill-total {
+  color: #f1e5bd;
+  font-size: 1.02rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
 @media (max-width: 760px) {
   .shell-header {
     display: block;
@@ -657,22 +746,32 @@ code {
 
   .roster-table,
   .deaths-table,
+  .completionist-table,
+  .boss-kill-table,
   .roster-table tbody,
   .deaths-table tbody,
+  .completionist-table tbody,
+  .boss-kill-table tbody,
   .roster-table tr,
   .deaths-table tr,
+  .completionist-table tr,
+  .boss-kill-table tr,
   .roster-table td {
     display: block;
     width: 100%;
   }
 
-  .deaths-table td {
+  .deaths-table td,
+  .completionist-table td,
+  .boss-kill-table td {
     display: block;
     width: 100%;
   }
 
   .roster-table thead,
-  .deaths-table thead {
+  .deaths-table thead,
+  .completionist-table thead,
+  .boss-kill-table thead {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -681,7 +780,9 @@ code {
   }
 
   .roster-table tr,
-  .deaths-table tr {
+  .deaths-table tr,
+  .completionist-table tr,
+  .boss-kill-table tr {
     margin-bottom: 14px;
     border: 1px solid #29313d;
     border-radius: 12px;
@@ -690,12 +791,16 @@ code {
   }
 
   .roster-table tr:last-child,
-  .deaths-table tr:last-child {
+  .deaths-table tr:last-child,
+  .completionist-table tr:last-child,
+  .boss-kill-table tr:last-child {
     margin-bottom: 0;
   }
 
   .roster-table td,
-  .deaths-table td {
+  .deaths-table td,
+  .completionist-table td,
+  .boss-kill-table td {
     display: grid;
     grid-template-columns: minmax(6.5rem, .7fr) minmax(0, 1.3fr);
     gap: 12px;
@@ -704,7 +809,9 @@ code {
   }
 
   .roster-table td::before,
-  .deaths-table td::before {
+  .deaths-table td::before,
+  .completionist-table td::before,
+  .boss-kill-table td::before {
     content: attr(data-label);
     color: #8f9baa;
     font-family: Inter, ui-sans-serif, system-ui, sans-serif;

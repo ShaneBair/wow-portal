@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import { DocumentTitle } from "../components/DocumentTitle.js";
 import { DeathLeaderboardPanel } from "../components/DeathLeaderboardPanel.js";
+import { CompletionistPanel } from "../components/CompletionistPanel.js";
+import { ServerMvpPanel } from "../components/ServerMvpPanel.js";
 import { StatsPopulationFilter } from "../components/StatsPopulationFilter.js";
 import { StatsPopulationProvider } from "../stats/stats-population.js";
 import { ServerStatus } from "../components/ServerStatus.js";
@@ -22,7 +24,16 @@ export function StatsPage({ children }: { children?: ReactNode }) {
         <StatsPopulationFilter />
 
         <section className="stats-content" aria-label="Statistics content">
-          {children ?? <DeathLeaderboardPanel />}
+          {children ?? <>
+            <section className="server-awards" aria-labelledby="serverAwardsHeading">
+              <h2 id="serverAwardsHeading">Server Awards</h2>
+              <div className="server-awards-grid">
+                <CompletionistPanel />
+                <ServerMvpPanel />
+              </div>
+            </section>
+            <DeathLeaderboardPanel />
+          </>}
         </section>
       </main>
     </StatsPopulationProvider>

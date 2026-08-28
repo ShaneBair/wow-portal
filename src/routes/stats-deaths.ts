@@ -1,5 +1,4 @@
 import { Router, type RequestHandler } from "express";
-import rateLimit from "express-rate-limit";
 import {
   DeathLeaderboardContractIntegrityError,
   getDeathLeaderboard,
@@ -7,37 +6,18 @@ import {
   type StatsPopulation
 } from "../services/death-leaderboard.js";
 import { StatsDatabaseConfigurationError } from "../services/stats-database.js";
+import { parseStatsPopulation, statsReadLimiter } from "../services/stats-http.js";
+
+export { parseStatsPopulation } from "../services/stats-http.js";
 
 const INVALID_POPULATION_MESSAGE = "Invalid population filter.";
 const UNAVAILABLE_MESSAGE = "Death statistics are temporarily unavailable.";
-
-const statsDeathsLimiter = rateLimit({
-  windowMs: 60_000,
-  limit: 30,
-  standardHeaders: "draft-8",
-  legacyHeaders: false,
-  handler: (_req, res) => {
-    res.status(429).json({ error: "Too many statistics requests. Try again shortly." });
-  }
-});
-
-export function parseStatsPopulation(value: unknown): StatsPopulation | undefined {
-  if (value === undefined) {
-    return "players";
-  }
-
-  if (value === "players" || value === "all") {
-    return value;
-  }
-
-  return undefined;
-}
 
 type LoadLeaderboard = (population: StatsPopulation) => Promise<DeathLeaderboardResponse>;
 
 export function createStatsDeathsRouter(
   loadLeaderboard: LoadLeaderboard = getDeathLeaderboard,
-  limiter: RequestHandler = statsDeathsLimiter
+  limiter: RequestHandler = statsReadLimiter
 ): Router {
   const router = Router();
 
