@@ -217,3 +217,17 @@ test("creates, rotates, expires, and invalidates digest-backed sessions", () => 
   now = SESSION_ABSOLUTE_TIMEOUT_MS;
   assert.equal(sessions.resolve(absolute.sessionId), undefined);
 });
+
+test("passive session checks do not extend the idle timeout", () => {
+  let now = 0;
+  const sessions = new PortalSessionStore(
+    () => now,
+    (size) => Buffer.alloc(size, 9)
+  );
+  const session = sessions.create({ accountId: 42, username: "TEST_USER" });
+
+  now = SESSION_IDLE_TIMEOUT_MS - 1;
+  assert.ok(sessions.resolve(session.sessionId, false));
+  now = SESSION_IDLE_TIMEOUT_MS;
+  assert.equal(sessions.resolve(session.sessionId, false), undefined);
+});

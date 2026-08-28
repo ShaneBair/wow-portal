@@ -191,9 +191,9 @@ describe("death leaderboard states and requests", () => {
       "/api/stats/deaths?population=all"
     );
     expect(queryClient.getQueryCache().getAll().map((query) => query.queryKey).filter(
-      (key) => key[0] === "stats" && key[1] === "deaths"
+      (key) => key[0] === "account-visible" && key[1] === "stats" && key[2] === "deaths"
     )).toEqual([
-      ["stats", "deaths", "all"]
+      ["account-visible", "stats", "deaths", "all"]
     ]);
   });
 
@@ -217,10 +217,10 @@ describe("death leaderboard states and requests", () => {
       requestUrl(input).startsWith("/api/stats/deaths?")
     )).toHaveLength(2);
     expect(queryClient.getQueryCache().getAll().map((query) => query.queryKey).filter(
-      (key) => key[0] === "stats" && key[1] === "deaths"
+      (key) => key[0] === "account-visible" && key[1] === "stats" && key[2] === "deaths"
     )).toEqual([
-      ["stats", "deaths", "players"],
-      ["stats", "deaths", "all"]
+      ["account-visible", "stats", "deaths", "players"],
+      ["account-visible", "stats", "deaths", "all"]
     ]);
 
     allDeferred.resolve(jsonResponse(leaderboard("all", [entries[1]!])));

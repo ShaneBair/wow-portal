@@ -1,5 +1,9 @@
 import { getClassName, getRaceName } from "../domain/wotlk.js";
 import {
+  buildAccountExclusionClause,
+  type AccountVisibilityScope
+} from "./account-visibility.js";
+import {
   getStatsDatabase,
   type StatsDatabaseConfig,
   validateStatsDatabaseIdentifier
@@ -39,7 +43,7 @@ export interface DeathLeaderboardResponse {
 
 export interface DeathLeaderboardQuery {
   sql: string;
-  values: readonly [string, string, string, string, string];
+  values: readonly (string | number)[];
 }
 
 export interface MappedDeathLeaderboardRows {
@@ -67,7 +71,8 @@ function qualified(database: string, table: string): string {
 
 export function buildDeathLeaderboardQuery(
   config: Pick<StatsDatabaseConfig, "charactersDatabase" | "authDatabase">,
-  population: StatsPopulation
+  population: StatsPopulation,
+  visibility: AccountVisibilityScope
 ): DeathLeaderboardQuery {
   const charactersDatabase = validateStatsDatabaseIdentifier(
     config.charactersDatabase,
@@ -82,6 +87,7 @@ export function buildDeathLeaderboardQuery(
   const charactersTable = qualified(charactersDatabase, "characters");
   const accountsTable = qualified(authDatabase, "account");
   const populationClause = population === "players" ? "    WHERE is_bot = 0\n" : "";
+  const accountExclusion = buildAccountExclusionClause(visibility, "c.account", "      ");
 
   return {
     sql: `WITH cutover_rows AS (
@@ -150,7 +156,7 @@ leaderboard AS (
     JOIN ${charactersTable} c ON c.guid = d.character_guid
     LEFT JOIN ${accountsTable} a ON a.id = c.account
     WHERE c.deleteDate IS NULL
-    ORDER BY d.deaths DESC, c.name ASC, d.is_bot ASC
+${accountExclusion.clause}    ORDER BY d.deaths DESC, c.name ASC, d.is_bot ASC
     LIMIT 25
 )
 SELECT
@@ -174,7 +180,8 @@ ORDER BY l.deaths DESC, l.characterName ASC, l.isBot ASC`,
       CANONICAL_DEATH_EVENT,
       CREATURE_DEATH_EVENT,
       PVP_KILL_EVENT,
-      CANONICAL_DEATH_EVENT
+      CANONICAL_DEATH_EVENT,
+      ...accountExclusion.values
     ]
   };
 }
@@ -380,11 +387,17 @@ export function mapDeathLeaderboardQueryRows(rows: unknown): MappedDeathLeaderbo
   };
 }
 
-export type QueryDeathRows = (population: StatsPopulation) => Promise<unknown>;
+export type QueryDeathRows = (
+  population: StatsPopulation,
+  visibility: AccountVisibilityScope
+) => Promise<unknown>;
 
-export async function queryDeathRows(population: StatsPopulation): Promise<unknown> {
+export async function queryDeathRows(
+  population: StatsPopulation,
+  visibility: AccountVisibilityScope
+): Promise<unknown> {
   const { pool, config } = getStatsDatabase();
-  const query = buildDeathLeaderboardQuery(config, population);
+  const query = buildDeathLeaderboardQuery(config, population, visibility);
   const [rows] = await pool.execute({
     sql: query.sql,
     values: [...query.values],
@@ -395,41 +408,49 @@ export async function queryDeathRows(population: StatsPopulation): Promise<unkno
 
 export class DeathLeaderboardService {
   private readonly cache = new Map<
-    StatsPopulation,
+    string,
     { value: DeathLeaderboardResponse; expiresAt: number }
   >();
-  private readonly inFlight = new Map<StatsPopulation, Promise<DeathLeaderboardResponse>>();
+  private readonly inFlight = new Map<string, Promise<DeathLeaderboardResponse>>();
 
   constructor(
     private readonly queryRows: QueryDeathRows = queryDeathRows,
     private readonly now: () => number = Date.now
   ) {}
 
-  async getLeaderboard(population: StatsPopulation): Promise<DeathLeaderboardResponse> {
+  async getLeaderboard(
+    population: StatsPopulation,
+    visibility: AccountVisibilityScope
+  ): Promise<DeathLeaderboardResponse> {
+    const cacheKey = `${population}:${visibility.cacheKey}`;
     const now = this.now();
-    const cached = this.cache.get(population);
+    const cached = this.cache.get(cacheKey);
 
     if (cached && now < cached.expiresAt) {
       return cached.value;
     }
 
-    const activeRefresh = this.inFlight.get(population);
+    const activeRefresh = this.inFlight.get(cacheKey);
     if (activeRefresh) {
       return activeRefresh;
     }
 
-    const refresh = this.refresh(population);
+    const refresh = this.refresh(population, visibility, cacheKey);
     const trackedRefresh = refresh.finally(() => {
-      if (this.inFlight.get(population) === trackedRefresh) {
-        this.inFlight.delete(population);
+      if (this.inFlight.get(cacheKey) === trackedRefresh) {
+        this.inFlight.delete(cacheKey);
       }
     });
-    this.inFlight.set(population, trackedRefresh);
+    this.inFlight.set(cacheKey, trackedRefresh);
     return trackedRefresh;
   }
 
-  private async refresh(population: StatsPopulation): Promise<DeathLeaderboardResponse> {
-    const result = mapDeathLeaderboardQueryRows(await this.queryRows(population));
+  private async refresh(
+    population: StatsPopulation,
+    visibility: AccountVisibilityScope,
+    cacheKey: string
+  ): Promise<DeathLeaderboardResponse> {
+    const result = mapDeathLeaderboardQueryRows(await this.queryRows(population, visibility));
     const generatedAt = this.now();
     const response: DeathLeaderboardResponse = {
       generatedAt: new Date(generatedAt).toISOString(),
@@ -438,7 +459,7 @@ export class DeathLeaderboardService {
       count: result.entries.length,
       entries: result.entries
     };
-    this.cache.set(population, {
+    this.cache.set(cacheKey, {
       value: response,
       expiresAt: generatedAt + CACHE_TTL_MS
     });
@@ -449,7 +470,8 @@ export class DeathLeaderboardService {
 const deathLeaderboardService = new DeathLeaderboardService();
 
 export function getDeathLeaderboard(
-  population: StatsPopulation
+  population: StatsPopulation,
+  visibility: AccountVisibilityScope
 ): Promise<DeathLeaderboardResponse> {
-  return deathLeaderboardService.getLeaderboard(population);
+  return deathLeaderboardService.getLeaderboard(population, visibility);
 }

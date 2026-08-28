@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -174,14 +174,48 @@ describe("portal authentication experience", () => {
       }
       return publicFallback(input);
     });
-    const { router } = renderApp("/boosts", fetchMock);
+    const { queryClient, router } = renderApp("/boosts", fetchMock);
     const user = userEvent.setup();
 
     expect(await screen.findByRole("heading", { level: 1, name: "Boosts" })).toBeTruthy();
+    queryClient.setQueryData(["protected", "characters"], { private: true });
+    queryClient.setQueryData(["account-visible", "stats", "deaths", "players"], {
+      entries: ["privileged"]
+    });
     await user.click(screen.getByRole("button", { name: "Log out" }));
     expect(await screen.findByRole("heading", { level: 1, name: "Log in" })).toBeTruthy();
     expect(router.state.location.pathname).toBe("/login");
     const logoutCall = fetchMock.mock.calls.find(([input]) => pathOf(input) === "/api/auth/logout");
     expect(new Headers(logoutCall?.[1]?.headers).get("X-CSRF-Token")).toBe(csrfToken);
+    expect(queryClient.getQueryData(["protected", "characters"])).toBeUndefined();
+    expect(queryClient.getQueryData([
+      "account-visible", "stats", "deaths", "players"
+    ])).toBeUndefined();
+  });
+
+  it("clears account-visible cache when a passive session check discovers expiry", async () => {
+    let authenticated = true;
+    const { queryClient } = renderApp("/", (input) => {
+      const path = pathOf(input);
+      if (path === "/api/auth/session") {
+        return Promise.resolve(jsonResponse(authenticated
+          ? authenticatedSession
+          : { authenticated: false }));
+      }
+      return publicFallback(input);
+    });
+
+    expect(await screen.findByText("TEST_USER")).toBeTruthy();
+    queryClient.setQueryData(["account-visible", "stats", "deaths", "players"], {
+      entries: ["privileged"]
+    });
+    authenticated = false;
+    await act(async () => {
+      await queryClient.refetchQueries({ queryKey: ["auth", "session"] });
+    });
+
+    await waitFor(() => expect(queryClient.getQueryData([
+      "account-visible", "stats", "deaths", "players"
+    ])).toBeUndefined());
   });
 });

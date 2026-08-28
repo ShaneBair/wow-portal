@@ -17,6 +17,7 @@ Node.js 22.22.2 or newer is required by the locked frontend toolchain.
 - Player/Bot-filtered deaths leaderboard with comprehensive post-cutover coverage
 - Completionist award for recorded quest completions, including repeatable-quest events
 - Server MVP award for recorded direct and pet-owner boss killing blows
+- Universal account visibility exclusions across online players and leaderboards
 - Game-account login with bounded portal sessions and protected-route support
 - Authenticated character boosts with durable, idempotent Free Money requests
 - Connection instructions
@@ -145,6 +146,26 @@ Before enabling login, verify the fabricated SRP6 test vector against the exact 
 AzerothCore/Playerbots revision, then test with a dedicated non-privileged account. Accounts with
 an active account ban or configured TOTP fail closed. Existing Home, registration, status, roster,
 and Stats behavior remains public.
+
+## Account visibility exclusions
+
+`PORTAL_HIDDEN_ACCOUNTS` contains a comma-separated list of canonical game-account logins that
+ordinary and anonymous viewers must not see. `PORTAL_HIDDEN_ACCOUNT_VIEWERS` contains the
+authenticated accounts allowed to see those hidden accounts. Both settings are required; an
+explicit empty value represents an empty list. Put real account names only in the ignored `.env`.
+
+At runtime the portal resolves configured logins through its existing least-privilege auth reads
+and enforces immutable account IDs. The shared visibility scope applies to the current-online
+panel, Most Deaths, Completionist, Server MVP, and future account-bearing views. Filtering occurs
+before ranking, limits, counts, and public projection. Public endpoints use the filtered scope for
+anonymous, invalid-session, and ordinary-account requests; only a valid configured viewer session
+receives the full scope.
+
+No migration or additional database grant is required. `PORTAL_AUTH_DATABASE` and
+`STATS_AUTH_DATABASE` must refer to the same AzerothCore account identity namespace. Missing or
+invalid visibility settings and unresolved configured accounts make only account-bearing endpoints
+unavailable; registration, Login, Boosts, status, `/health`, and static assets remain independent.
+Changing either list requires a portal container restart.
 
 ## Player boosts
 

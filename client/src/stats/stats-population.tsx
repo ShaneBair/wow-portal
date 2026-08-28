@@ -27,7 +27,7 @@ export function statsPopulationQueryKey<TScope extends string>(
   scope: TScope,
   population: StatsPopulation
 ) {
-  return ["stats", scope, population] as const;
+  return ["account-visible", "stats", scope, population] as const;
 }
 
 export function useStatsPopulation(): StatsPopulationContextValue {

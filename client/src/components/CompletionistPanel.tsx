@@ -185,6 +185,17 @@ export function CompletionistPanel() {
         <span className="award-icon" aria-hidden="true">📜</span>
         <div><h3 id="completionistHeading">Completionist</h3><p>Most quests completed</p></div>
       </div>
+      <p className="award-detail">
+        {leaderboard?.coverage.firstRecordedAt
+          ? <>
+              Recorded quest completions from{" "}
+              <time dateTime={leaderboard.coverage.firstRecordedAt}>
+                {formatCoverageTimestamp(leaderboard.coverage.firstRecordedAt)}
+              </time>{" "}
+              onward. Repeatable quests count each time.
+            </>
+          : "Recorded quest completions only. Repeatable quests count each time."}
+      </p>
       <p className="deaths-limit">Showing up to 25 server-ranked results. Column sorting reorders these results.</p>
       {leaderboardQuery.isPending && <p className="players-message" role="status">
         Loading quest completion statistics...

@@ -5,9 +5,9 @@ import {
   mapQuestCompletionLeaderboardRows,
   mapQuestCompletionQueryRows,
   QuestCompletionContractIntegrityError,
-  QuestCompletionLeaderboardService,
-  type StatsPopulation
+  QuestCompletionLeaderboardService
 } from "../src/services/quest-completion-leaderboard.js";
+import { fullVisibility, standardVisibility } from "./fixtures/account-visibility.js";
 
 const config = { charactersDatabase: "acore_characters", authDatabase: "acore_auth" };
 
@@ -51,8 +51,8 @@ function emptyRow(overrides: Record<string, unknown> = {}): Record<string, unkno
 }
 
 test("builds bounded raw-event quest queries for players and combined populations", () => {
-  const players = buildQuestCompletionLeaderboardQuery(config, "players");
-  const all = buildQuestCompletionLeaderboardQuery(config, "all");
+  const players = buildQuestCompletionLeaderboardQuery(config, "players", fullVisibility);
+  const all = buildQuestCompletionLeaderboardQuery(config, "all", fullVisibility);
   assert.deepEqual(players.values, [4, "quest", "QUEST_COMPLETE", "QUEST_COMPLETE"]);
   assert.match(players.sql, /MIN\(event_time\) AS firstRecordedAt/u);
   assert.match(players.sql, /event_time IS NULL/u);
@@ -73,10 +73,19 @@ test("builds bounded raw-event quest queries for players and combined population
   assert.match(all.sql, /WHERE c\.deleteDate IS NULL/u);
   assert.match(all.sql, /ORDER BY q\.questCompletions DESC, c\.name ASC, q\.actor_is_bot ASC\s+LIMIT 25/u);
   assert.doesNotMatch(all.sql, /email|last_login|sessionkey|verifier|salt/iu);
+  const standard = buildQuestCompletionLeaderboardQuery(
+    config,
+    "all",
+    standardVisibility([19, 7])
+  );
+  assert.match(standard.sql, /AND c\.account NOT IN \(\?, \?\)/u);
+  assert.ok(standard.sql.indexOf("c.account NOT IN") < standard.sql.indexOf("ORDER BY"));
+  assert.deepEqual(standard.values.slice(-2), [7, 19]);
+  assert.doesNotMatch(all.sql, /c\.account NOT IN/u);
   assert.throws(() => buildQuestCompletionLeaderboardQuery({
     charactersDatabase: "characters`; DROP TABLE account; --",
     authDatabase: "auth"
-  }, "all"), /ASCII letters, digits, and underscores/u);
+  }, "all", fullVisibility), /ASCII letters, digits, and underscores/u);
 });
 
 test("maps coverage, valid empty results, and separate Player/Bot groups", () => {
@@ -152,25 +161,29 @@ test("fails closed for malformed event contracts, metadata, rows, and unsafe cou
 
 test("separates 60-second caches and coalesces only matching population refreshes", async () => {
   let now = 1_000;
-  const calls: StatsPopulation[] = [];
-  const pending = new Map<StatsPopulation, (rows: unknown[]) => void>();
-  const service = new QuestCompletionLeaderboardService((population) => {
-    calls.push(population);
-    return new Promise((resolve) => pending.set(population, resolve));
+  const calls: string[] = [];
+  const pending = new Map<string, (rows: unknown[]) => void>();
+  const service = new QuestCompletionLeaderboardService((population, visibility) => {
+    const key = `${population}:${visibility.cacheKey}`;
+    calls.push(key);
+    return new Promise((resolve) => pending.set(key, resolve));
   }, () => now);
-  const playersOne = service.getLeaderboard("players");
-  const playersTwo = service.getLeaderboard("players");
-  const all = service.getLeaderboard("all");
-  assert.deepEqual(calls, ["players", "all"]);
-  pending.get("players")?.([queryRow()]);
-  pending.get("all")?.([queryRow({ isBot: 1 })]);
+  const playersOne = service.getLeaderboard("players", fullVisibility);
+  const playersTwo = service.getLeaderboard("players", fullVisibility);
+  const all = service.getLeaderboard("all", fullVisibility);
+  const standard = service.getLeaderboard("players", standardVisibility([7]));
+  assert.deepEqual(calls, ["players:full", "all:full", "players:standard"]);
+  pending.get("players:full")?.([queryRow()]);
+  pending.get("all:full")?.([queryRow({ isBot: 1 })]);
+  pending.get("players:standard")?.([queryRow({ characterName: "Visible" })]);
   const [first, second] = await Promise.all([playersOne, playersTwo]);
   const allResult = await all;
+  assert.notStrictEqual(await standard, first);
   assert.strictEqual(first, second);
   assert.notStrictEqual(first, allResult);
   now = 60_999;
-  assert.strictEqual(await service.getLeaderboard("players"), first);
-  assert.deepEqual(calls, ["players", "all"]);
+  assert.strictEqual(await service.getLeaderboard("players", fullVisibility), first);
+  assert.deepEqual(calls, ["players:full", "all:full", "players:standard"]);
 });
 
 test("returns failure instead of expired stale data", async () => {
@@ -181,8 +194,11 @@ test("returns failure instead of expired stale data", async () => {
     if (calls === 1) return [queryRow()];
     throw new Error("database unavailable");
   }, () => now);
-  await service.getLeaderboard("players");
+  await service.getLeaderboard("players", fullVisibility);
   now = 60_001;
-  await assert.rejects(() => service.getLeaderboard("players"), /database unavailable/u);
+  await assert.rejects(
+    () => service.getLeaderboard("players", fullVisibility),
+    /database unavailable/u
+  );
   assert.equal(calls, 2);
 });

@@ -174,8 +174,12 @@ describe("Stats population URL contract", () => {
 
 describe("Stats population query contract", () => {
   it("creates distinct population-specific query keys", () => {
-    expect(statsPopulationQueryKey("deaths", "players")).toEqual(["stats", "deaths", "players"]);
-    expect(statsPopulationQueryKey("deaths", "all")).toEqual(["stats", "deaths", "all"]);
+    expect(statsPopulationQueryKey("deaths", "players")).toEqual([
+      "account-visible", "stats", "deaths", "players"
+    ]);
+    expect(statsPopulationQueryKey("deaths", "all")).toEqual([
+      "account-visible", "stats", "deaths", "all"
+    ]);
   });
 
   it("passes the effective value to consumers and does not retain previous results during a change", async () => {
@@ -201,10 +205,10 @@ describe("Stats population query contract", () => {
     expect(calls.map((call) => call.population)).toEqual(["players", "all"]);
     expect(calls.every((call) => call.signal instanceof AbortSignal)).toBe(true);
     expect(queryClient.getQueryCache().getAll().map((query) => query.queryKey).filter(
-      (key) => key[0] === "stats"
+      (key) => key[0] === "account-visible" && key[1] === "stats"
     )).toEqual([
-      ["stats", "deaths", "players"],
-      ["stats", "deaths", "all"]
+      ["account-visible", "stats", "deaths", "players"],
+      ["account-visible", "stats", "deaths", "all"]
     ]);
 
     allResult.resolve("All activity result");

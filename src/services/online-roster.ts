@@ -1,4 +1,5 @@
 import { getClassName, getRaceName, isKnownClass, isKnownRace } from "../domain/wotlk.js";
+import type { AccountVisibilityScope } from "./account-visibility.js";
 import {
   executeAzerothCoreCommand,
   type SoapResult
@@ -26,6 +27,11 @@ type ProviderPlayer = {
   areaId: number;
   location: string;
 };
+
+interface OnlineRosterSnapshot {
+  generatedAt: string;
+  players: ProviderPlayer[];
+}
 
 export type OnlinePlayer = {
   accountLogin: string;
@@ -152,7 +158,7 @@ function extractPayloadJson(output: string): string {
   return payloadJson;
 }
 
-export function parseOnlineRosterOutput(output: string): OnlinePlayersResponse {
+export function parseOnlineRosterProviderOutput(output: string): OnlineRosterSnapshot {
   const payloadJson = extractPayloadJson(output);
   let payload: unknown;
 
@@ -173,27 +179,39 @@ export function parseOnlineRosterOutput(output: string): OnlinePlayersResponse {
     MAX_UNIX_SECONDS_FOR_ISO
   );
   const providerPlayers = payload.players.map(validateProviderPlayer);
+  return {
+    generatedAt: new Date(generatedAt * 1000).toISOString(),
+    players: providerPlayers
+  };
+}
+
+export function projectOnlineRoster(
+  snapshot: OnlineRosterSnapshot,
+  visibility: AccountVisibilityScope
+): OnlinePlayersResponse {
+  const hiddenAccountIds = new Set(visibility.excludedAccountIds);
   const unknownRaceIds = new Set<number>();
   const unknownClassIds = new Set<number>();
+  const players = snapshot.players
+    .filter((player) => !hiddenAccountIds.has(player.accountId))
+    .map<OnlinePlayer>((player) => {
+      if (!isKnownRace(player.raceId)) {
+        unknownRaceIds.add(player.raceId);
+      }
 
-  const players = providerPlayers.map<OnlinePlayer>((player) => {
-    if (!isKnownRace(player.raceId)) {
-      unknownRaceIds.add(player.raceId);
-    }
+      if (!isKnownClass(player.classId)) {
+        unknownClassIds.add(player.classId);
+      }
 
-    if (!isKnownClass(player.classId)) {
-      unknownClassIds.add(player.classId);
-    }
-
-    return {
-      accountLogin: player.accountLogin,
-      characterName: player.characterName,
-      race: getRaceName(player.raceId),
-      class: getClassName(player.classId),
-      level: player.level,
-      location: player.location
-    };
-  });
+      return {
+        accountLogin: player.accountLogin,
+        characterName: player.characterName,
+        race: getRaceName(player.raceId),
+        class: getClassName(player.classId),
+        level: player.level,
+        location: player.location
+      };
+    });
 
   for (const raceId of unknownRaceIds) {
     console.warn(`Unknown WotLK race ID received from online roster: ${raceId}.`);
@@ -216,24 +234,40 @@ export function parseOnlineRosterOutput(output: string): OnlinePlayersResponse {
   });
 
   return {
-    generatedAt: new Date(generatedAt * 1000).toISOString(),
+    generatedAt: snapshot.generatedAt,
     count: players.length,
     players
   };
 }
 
+const UNFILTERED_SCOPE: AccountVisibilityScope = Object.freeze({
+  cacheKey: "full",
+  excludedAccountIds: Object.freeze([])
+});
+
+export function parseOnlineRosterOutput(
+  output: string,
+  visibility: AccountVisibilityScope = UNFILTERED_SCOPE
+): OnlinePlayersResponse {
+  return projectOnlineRoster(parseOnlineRosterProviderOutput(output), visibility);
+}
+
 type ExecuteCommand = (command: string) => Promise<SoapResult>;
 
 export class OnlineRosterService {
-  private cached: { value: OnlinePlayersResponse; expiresAt: number } | undefined;
-  private inFlight: Promise<OnlinePlayersResponse> | undefined;
+  private cached: { value: OnlineRosterSnapshot; expiresAt: number } | undefined;
+  private inFlight: Promise<OnlineRosterSnapshot> | undefined;
 
   constructor(
     private readonly executeCommand: ExecuteCommand = executeAzerothCoreCommand,
     private readonly now: () => number = Date.now
   ) {}
 
-  async getOnlinePlayers(): Promise<OnlinePlayersResponse> {
+  async getOnlinePlayers(visibility: AccountVisibilityScope): Promise<OnlinePlayersResponse> {
+    return projectOnlineRoster(await this.getSnapshot(), visibility);
+  }
+
+  private async getSnapshot(): Promise<OnlineRosterSnapshot> {
     const now = this.now();
 
     if (this.cached && now < this.cached.expiresAt) {
@@ -254,14 +288,14 @@ export class OnlineRosterService {
     return trackedRefresh;
   }
 
-  private async refresh(): Promise<OnlinePlayersResponse> {
+  private async refresh(): Promise<OnlineRosterSnapshot> {
     const result = await this.executeCommand(COMMAND);
 
     if (!result.ok) {
       throw new OnlineRosterError("Online roster command failed.", "command_failed");
     }
 
-    const roster = parseOnlineRosterOutput(result.output);
+    const roster = parseOnlineRosterProviderOutput(result.output);
     this.cached = { value: roster, expiresAt: this.now() + CACHE_TTL_MS };
     return roster;
   }
@@ -269,6 +303,8 @@ export class OnlineRosterService {
 
 const onlineRosterService = new OnlineRosterService();
 
-export function getOnlinePlayers(): Promise<OnlinePlayersResponse> {
-  return onlineRosterService.getOnlinePlayers();
+export function getOnlinePlayers(
+  visibility: AccountVisibilityScope
+): Promise<OnlinePlayersResponse> {
+  return onlineRosterService.getOnlinePlayers(visibility);
 }

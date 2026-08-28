@@ -119,7 +119,7 @@ export function createAuthRouter(dependencies: AuthRouterDependencies = {}): Rou
       return response.json({ authenticated: false });
     }
     const sessionId = readCookie(request, config.sessionCookieName);
-    const session = sessionId ? sessions.resolve(sessionId) : undefined;
+    const session = sessionId ? sessions.resolve(sessionId, false) : undefined;
     if (!session) {
       if (sessionId) {
         clearSessionCookie(response, config);

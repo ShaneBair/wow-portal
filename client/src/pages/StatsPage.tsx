@@ -23,15 +23,19 @@ export function StatsPage({ children }: { children?: ReactNode }) {
 
         <StatsPopulationFilter />
 
-        <section className="stats-content" aria-label="Statistics content">
-          <CompletionistPanel />
-        </section>
-        <section className="stats-content" aria-label="Statistics content">
-          <ServerMvpPanel />
-        </section>
-        <section className="stats-content" aria-label="Statistics content">
-          <DeathLeaderboardPanel />
-        </section>
+        {children ?? (
+          <>
+            <section className="stats-content" aria-label="Statistics content">
+              <CompletionistPanel />
+            </section>
+            <section className="stats-content" aria-label="Statistics content">
+              <ServerMvpPanel />
+            </section>
+            <section className="stats-content" aria-label="Statistics content">
+              <DeathLeaderboardPanel />
+            </section>
+          </>
+        )}
       </main>
     </StatsPopulationProvider>
   );

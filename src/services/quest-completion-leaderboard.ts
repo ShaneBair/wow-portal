@@ -1,4 +1,8 @@
 import { getClassName, getRaceName } from "../domain/wotlk.js";
+import {
+  buildAccountExclusionClause,
+  type AccountVisibilityScope
+} from "./account-visibility.js";
 import type { StatsPopulation } from "./death-leaderboard.js";
 import {
   getStatsDatabase,
@@ -35,7 +39,7 @@ export interface QuestCompletionLeaderboardResponse {
 
 export interface QuestCompletionLeaderboardQuery {
   sql: string;
-  values: readonly [number, string, string, string];
+  values: readonly (number | string)[];
 }
 
 export interface MappedQuestCompletionRows {
@@ -63,7 +67,8 @@ function qualified(database: string, table: string): string {
 
 export function buildQuestCompletionLeaderboardQuery(
   config: Pick<StatsDatabaseConfig, "charactersDatabase" | "authDatabase">,
-  population: StatsPopulation
+  population: StatsPopulation,
+  visibility: AccountVisibilityScope
 ): QuestCompletionLeaderboardQuery {
   const charactersDatabase = validateStatsDatabaseIdentifier(
     config.charactersDatabase,
@@ -74,6 +79,7 @@ export function buildQuestCompletionLeaderboardQuery(
   const charactersTable = qualified(charactersDatabase, "characters");
   const accountsTable = qualified(authDatabase, "account");
   const populationClause = population === "players" ? "      AND e.actor_is_bot = 0\n" : "";
+  const accountExclusion = buildAccountExclusionClause(visibility, "c.account", "      ");
 
   return {
     sql: `WITH quest_contract AS (
@@ -116,7 +122,7 @@ eligible_totals AS (
     JOIN ${charactersTable} c ON c.guid = q.actor_guid
     LEFT JOIN ${accountsTable} a ON a.id = c.account
     WHERE c.deleteDate IS NULL
-    ORDER BY q.questCompletions DESC, c.name ASC, q.actor_is_bot ASC
+${accountExclusion.clause}    ORDER BY q.questCompletions DESC, c.name ASC, q.actor_is_bot ASC
     LIMIT 25
 )
 SELECT
@@ -132,7 +138,13 @@ SELECT
 FROM quest_contract qc
 LEFT JOIN eligible_totals e ON TRUE
 ORDER BY e.questCompletions DESC, e.characterName ASC, e.isBot ASC`,
-    values: [QUEST_TARGET_TYPE, QUEST_SOURCE, QUEST_COMPLETE_EVENT, QUEST_COMPLETE_EVENT]
+    values: [
+      QUEST_TARGET_TYPE,
+      QUEST_SOURCE,
+      QUEST_COMPLETE_EVENT,
+      QUEST_COMPLETE_EVENT,
+      ...accountExclusion.values
+    ]
   };
 }
 
@@ -282,11 +294,17 @@ export function mapQuestCompletionQueryRows(rows: unknown): MappedQuestCompletio
   };
 }
 
-export type QueryQuestCompletionRows = (population: StatsPopulation) => Promise<unknown>;
+export type QueryQuestCompletionRows = (
+  population: StatsPopulation,
+  visibility: AccountVisibilityScope
+) => Promise<unknown>;
 
-export async function queryQuestCompletionRows(population: StatsPopulation): Promise<unknown> {
+export async function queryQuestCompletionRows(
+  population: StatsPopulation,
+  visibility: AccountVisibilityScope
+): Promise<unknown> {
   const { pool, config } = getStatsDatabase();
-  const query = buildQuestCompletionLeaderboardQuery(config, population);
+  const query = buildQuestCompletionLeaderboardQuery(config, population, visibility);
   const [rows] = await pool.execute({
     sql: query.sql,
     values: [...query.values],
@@ -296,34 +314,42 @@ export async function queryQuestCompletionRows(population: StatsPopulation): Pro
 }
 
 export class QuestCompletionLeaderboardService {
-  private readonly cache = new Map<StatsPopulation, {
+  private readonly cache = new Map<string, {
     value: QuestCompletionLeaderboardResponse;
     expiresAt: number;
   }>();
-  private readonly inFlight = new Map<StatsPopulation, Promise<QuestCompletionLeaderboardResponse>>();
+  private readonly inFlight = new Map<string, Promise<QuestCompletionLeaderboardResponse>>();
 
   constructor(
     private readonly queryRows: QueryQuestCompletionRows = queryQuestCompletionRows,
     private readonly now: () => number = Date.now
   ) {}
 
-  async getLeaderboard(population: StatsPopulation): Promise<QuestCompletionLeaderboardResponse> {
+  async getLeaderboard(
+    population: StatsPopulation,
+    visibility: AccountVisibilityScope
+  ): Promise<QuestCompletionLeaderboardResponse> {
+    const cacheKey = `${population}:${visibility.cacheKey}`;
     const now = this.now();
-    const cached = this.cache.get(population);
+    const cached = this.cache.get(cacheKey);
     if (cached && now < cached.expiresAt) return cached.value;
-    const active = this.inFlight.get(population);
+    const active = this.inFlight.get(cacheKey);
     if (active) return active;
 
-    const refresh = this.refresh(population);
+    const refresh = this.refresh(population, visibility, cacheKey);
     const tracked = refresh.finally(() => {
-      if (this.inFlight.get(population) === tracked) this.inFlight.delete(population);
+      if (this.inFlight.get(cacheKey) === tracked) this.inFlight.delete(cacheKey);
     });
-    this.inFlight.set(population, tracked);
+    this.inFlight.set(cacheKey, tracked);
     return tracked;
   }
 
-  private async refresh(population: StatsPopulation): Promise<QuestCompletionLeaderboardResponse> {
-    const mapped = mapQuestCompletionQueryRows(await this.queryRows(population));
+  private async refresh(
+    population: StatsPopulation,
+    visibility: AccountVisibilityScope,
+    cacheKey: string
+  ): Promise<QuestCompletionLeaderboardResponse> {
+    const mapped = mapQuestCompletionQueryRows(await this.queryRows(population, visibility));
     const generatedAt = this.now();
     const response: QuestCompletionLeaderboardResponse = {
       generatedAt: new Date(generatedAt).toISOString(),
@@ -332,7 +358,7 @@ export class QuestCompletionLeaderboardService {
       count: mapped.entries.length,
       entries: mapped.entries
     };
-    this.cache.set(population, { value: response, expiresAt: generatedAt + CACHE_TTL_MS });
+    this.cache.set(cacheKey, { value: response, expiresAt: generatedAt + CACHE_TTL_MS });
     return response;
   }
 }
@@ -340,7 +366,8 @@ export class QuestCompletionLeaderboardService {
 const questCompletionLeaderboardService = new QuestCompletionLeaderboardService();
 
 export function getQuestCompletionLeaderboard(
-  population: StatsPopulation
+  population: StatsPopulation,
+  visibility: AccountVisibilityScope
 ): Promise<QuestCompletionLeaderboardResponse> {
-  return questCompletionLeaderboardService.getLeaderboard(population);
+  return questCompletionLeaderboardService.getLeaderboard(population, visibility);
 }

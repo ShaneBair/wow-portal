@@ -3,11 +3,13 @@ import { createServer, type Server } from "node:http";
 import test from "node:test";
 import express, { type RequestHandler } from "express";
 import { createStatsDeathsRouter } from "../src/routes/stats-deaths.js";
+import type { AccountVisibilityScope } from "../src/services/account-visibility.js";
 import type {
   DeathLeaderboardResponse,
   StatsPopulation
 } from "../src/services/death-leaderboard.js";
 import { DeathLeaderboardContractIntegrityError } from "../src/services/death-leaderboard.js";
+import { attachVisibility, fullVisibility } from "./fixtures/account-visibility.js";
 
 const noLimit: RequestHandler = (_req, _res, next) => next();
 
@@ -33,10 +35,13 @@ async function close(server: Server): Promise<void> {
 
 async function requestRoute(
   query: string,
-  load: (population: StatsPopulation) => Promise<DeathLeaderboardResponse>
+  load: (
+    population: StatsPopulation,
+    visibility: AccountVisibilityScope
+  ) => Promise<DeathLeaderboardResponse>
 ): Promise<{ response: Response; body: unknown }> {
   const app = express();
-  app.use(createStatsDeathsRouter(load, noLimit));
+  app.use(createStatsDeathsRouter(load, noLimit, attachVisibility(fullVisibility)));
   const server = createServer(app);
   const port = await listen(server);
 
@@ -79,6 +84,7 @@ test("defaults a missing population to players and accepts both valid values", a
 
       assert.equal(result.response.status, 200);
       assert.equal(result.response.headers.get("cache-control"), "no-store");
+      assert.equal(result.response.headers.get("vary"), "Cookie");
       assert.equal(received, expected);
       assert.deepEqual(result.body, response(expected));
     });

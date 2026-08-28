@@ -5,7 +5,7 @@ const REFRESH_INTERVAL_MS = 30_000;
 
 export function OnlinePlayersPanel() {
   const rosterQuery = useQuery({
-    queryKey: ["online-players"],
+    queryKey: ["account-visible", "online-players"],
     queryFn: ({ signal }) => getOnlinePlayers(signal),
     refetchInterval: REFRESH_INTERVAL_MS,
     refetchIntervalInBackground: true,

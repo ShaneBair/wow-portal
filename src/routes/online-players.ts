@@ -1,4 +1,9 @@
 import { Router, type RequestHandler } from "express";
+import {
+  createAccountVisibilityMiddleware,
+  type AccountVisibilityLocals
+} from "../middleware/account-visibility.js";
+import type { AccountVisibilityScope } from "../services/account-visibility.js";
 import rateLimit from "express-rate-limit";
 import {
   getOnlinePlayers,
@@ -18,8 +23,13 @@ const onlinePlayersLimiter = rateLimit({
 });
 
 export function createOnlinePlayersRouter(
-  loadOnlinePlayers: () => Promise<OnlinePlayersResponse> = getOnlinePlayers,
-  limiter: RequestHandler = onlinePlayersLimiter
+  loadOnlinePlayers: (visibility: AccountVisibilityScope) => Promise<OnlinePlayersResponse> =
+    getOnlinePlayers,
+  limiter: RequestHandler = onlinePlayersLimiter,
+  visibility: RequestHandler = createAccountVisibilityMiddleware({
+    unavailableMessage: UNAVAILABLE_MESSAGE,
+    logLabel: "Online roster"
+  })
 ): Router {
   const router = Router();
 
@@ -27,12 +37,15 @@ export function createOnlinePlayersRouter(
     "/api/online-players",
     (_req, res, next) => {
       res.set("Cache-Control", "no-store");
+      res.vary("Cookie");
       next();
     },
     limiter,
+    visibility,
     async (_req, res) => {
       try {
-        return res.json(await loadOnlinePlayers());
+        const locals = res.locals as AccountVisibilityLocals;
+        return res.json(await loadOnlinePlayers(locals.accountVisibilityScope));
       } catch (error) {
         const errorKind = error instanceof Error ? error.name : "UnknownError";
         console.error(`Online roster request failed (${errorKind}).`);

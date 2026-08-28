@@ -199,6 +199,15 @@ export function DeathLeaderboardPanel() {
   return (
     <section className="panel deaths-panel" aria-labelledby="deathsHeading">
       <h2 id="deathsHeading">Most Deaths</h2>
+      {leaderboard && (
+        <p className="deaths-scope">
+          Known creature and PvP deaths before{" "}
+          <time dateTime={leaderboard.coverage.comprehensiveSince}>
+            {formatCoverageTimestamp(leaderboard.coverage.comprehensiveSince)}
+          </time>
+          ; all recorded deaths since then, including environmental deaths.
+        </p>
+      )}
       <p className="deaths-limit">
         Showing up to 25 highest recorded death totals. Column sorting reorders these results.
       </p>

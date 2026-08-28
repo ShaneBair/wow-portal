@@ -3,11 +3,13 @@ import { createServer, type Server } from "node:http";
 import test from "node:test";
 import express, { type RequestHandler } from "express";
 import { createStatsQuestCompletionsRouter } from "../src/routes/stats-quest-completions.js";
+import type { AccountVisibilityScope } from "../src/services/account-visibility.js";
 import {
   QuestCompletionContractIntegrityError,
   type QuestCompletionLeaderboardResponse,
   type StatsPopulation
 } from "../src/services/quest-completion-leaderboard.js";
+import { attachVisibility, fullVisibility } from "./fixtures/account-visibility.js";
 
 const noLimit: RequestHandler = (_request, _response, next) => next();
 
@@ -26,11 +28,14 @@ function result(population: StatsPopulation): QuestCompletionLeaderboardResponse
 
 async function requestRoute(
   query: string,
-  load: (population: StatsPopulation) => Promise<QuestCompletionLeaderboardResponse>,
+  load: (
+    population: StatsPopulation,
+    visibility: AccountVisibilityScope
+  ) => Promise<QuestCompletionLeaderboardResponse>,
   limiter: RequestHandler = noLimit
 ): Promise<{ response: Response; body: unknown }> {
   const app = express();
-  app.use(createStatsQuestCompletionsRouter(load, limiter));
+  app.use(createStatsQuestCompletionsRouter(load, limiter, attachVisibility(fullVisibility)));
   const server = createServer(app);
   const port = await new Promise<number>((resolve, reject) => {
     server.once("error", reject);
@@ -57,6 +62,7 @@ test("defaults and accepts the shared population values with no-store responses"
     });
     assert.equal(response.response.status, 200);
     assert.equal(response.response.headers.get("cache-control"), "no-store");
+    assert.equal(response.response.headers.get("vary"), "Cookie");
     assert.equal(received, expected);
     assert.deepEqual(response.body, result(expected));
   }

@@ -109,6 +109,7 @@ export async function getBossKillLeaderboard(
   const query = new URLSearchParams({ population });
   const response = await fetch(`/api/stats/boss-kills?${query.toString()}`, {
     cache: "no-store",
+    credentials: "same-origin",
     signal
   });
   if (!response.ok) throw new PortalApiError(UNAVAILABLE_MESSAGE);

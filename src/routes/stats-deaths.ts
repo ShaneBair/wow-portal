@@ -1,5 +1,10 @@
 import { Router, type RequestHandler } from "express";
 import {
+  createAccountVisibilityMiddleware,
+  type AccountVisibilityLocals
+} from "../middleware/account-visibility.js";
+import type { AccountVisibilityScope } from "../services/account-visibility.js";
+import {
   DeathLeaderboardContractIntegrityError,
   getDeathLeaderboard,
   type DeathLeaderboardResponse,
@@ -13,11 +18,18 @@ export { parseStatsPopulation } from "../services/stats-http.js";
 const INVALID_POPULATION_MESSAGE = "Invalid population filter.";
 const UNAVAILABLE_MESSAGE = "Death statistics are temporarily unavailable.";
 
-type LoadLeaderboard = (population: StatsPopulation) => Promise<DeathLeaderboardResponse>;
+type LoadLeaderboard = (
+  population: StatsPopulation,
+  visibility: AccountVisibilityScope
+) => Promise<DeathLeaderboardResponse>;
 
 export function createStatsDeathsRouter(
   loadLeaderboard: LoadLeaderboard = getDeathLeaderboard,
-  limiter: RequestHandler = statsReadLimiter
+  limiter: RequestHandler = statsReadLimiter,
+  visibility: RequestHandler = createAccountVisibilityMiddleware({
+    unavailableMessage: UNAVAILABLE_MESSAGE,
+    logLabel: "Death statistics"
+  })
 ): Router {
   const router = Router();
 
@@ -25,9 +37,11 @@ export function createStatsDeathsRouter(
     "/api/stats/deaths",
     (_req, res, next) => {
       res.set("Cache-Control", "no-store");
+      res.vary("Cookie");
       next();
     },
     limiter,
+    visibility,
     async (req, res) => {
       const population = parseStatsPopulation(req.query.population);
 
@@ -36,7 +50,8 @@ export function createStatsDeathsRouter(
       }
 
       try {
-        return res.json(await loadLeaderboard(population));
+        const locals = res.locals as AccountVisibilityLocals;
+        return res.json(await loadLeaderboard(population, locals.accountVisibilityScope));
       } catch (error) {
         if (error instanceof DeathLeaderboardContractIntegrityError) {
           console.error("Death statistics provider contract integrity check failed.");

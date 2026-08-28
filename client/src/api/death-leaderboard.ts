@@ -133,6 +133,7 @@ export async function getDeathLeaderboard(
   const query = new URLSearchParams({ population });
   const response = await fetch(`/api/stats/deaths?${query.toString()}`, {
     cache: "no-store",
+    credentials: "same-origin",
     signal
   });
 

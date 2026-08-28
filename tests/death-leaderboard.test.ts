@@ -12,6 +12,7 @@ import {
   readStatsDatabaseConfig,
   StatsDatabaseConfigurationError
 } from "../src/services/stats-database.js";
+import { fullVisibility, standardVisibility } from "./fixtures/account-visibility.js";
 
 function row(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -59,8 +60,8 @@ const config = {
 };
 
 test("builds the bounded hybrid death query with integrity and population checks", () => {
-  const players = buildDeathLeaderboardQuery(config, "players");
-  const all = buildDeathLeaderboardQuery(config, "all");
+  const players = buildDeathLeaderboardQuery(config, "players", fullVisibility);
+  const all = buildDeathLeaderboardQuery(config, "all", fullVisibility);
 
   assert.deepEqual(players.values, [
     "canonical_player_death_v1",
@@ -89,11 +90,16 @@ test("builds the bounded hybrid death query with integrity and population checks
   assert.match(all.sql, /ORDER BY d\.deaths DESC, c\.name ASC, d\.is_bot ASC\s+LIMIT 25/u);
   assert.match(all.sql, /LEFT JOIN leaderboard l ON TRUE/u);
   assert.doesNotMatch(all.sql, /email|last_login|sessionkey|verifier|salt/iu);
+  const standard = buildDeathLeaderboardQuery(config, "all", standardVisibility([19, 7]));
+  assert.match(standard.sql, /AND c\.account NOT IN \(\?, \?\)/u);
+  assert.ok(standard.sql.indexOf("c.account NOT IN") < standard.sql.indexOf("ORDER BY"));
+  assert.deepEqual(standard.values.slice(-2), [7, 19]);
+  assert.doesNotMatch(all.sql, /c\.account NOT IN/u);
   assert.throws(
     () => buildDeathLeaderboardQuery({
       charactersDatabase: "characters`; DROP TABLE account; --",
       authDatabase: "auth"
-    }, "all"),
+    }, "all", fullVisibility),
     /ASCII letters, digits, and underscores/u
   );
 });
@@ -265,22 +271,24 @@ test("validates complete Stats database configuration and identifier safety", ()
 
 test("keeps successful cache entries independent by population for sixty seconds", async () => {
   let now = 1_000;
-  const calls: StatsPopulation[] = [];
-  const service = new DeathLeaderboardService(async (population) => {
-    calls.push(population);
+  const calls: string[] = [];
+  const service = new DeathLeaderboardService(async (population, visibility) => {
+    calls.push(`${population}:${visibility.cacheKey}`);
     return [queryRow({ isBot: population === "all" ? 1 : 0 })];
   }, () => now);
 
-  const players = await service.getLeaderboard("players");
-  const all = await service.getLeaderboard("all");
+  const players = await service.getLeaderboard("players", fullVisibility);
+  const all = await service.getLeaderboard("all", fullVisibility);
   now = 60_999;
-  const cachedPlayers = await service.getLeaderboard("players");
-  const cachedAll = await service.getLeaderboard("all");
+  const cachedPlayers = await service.getLeaderboard("players", fullVisibility);
+  const cachedAll = await service.getLeaderboard("all", fullVisibility);
+  const standardPlayers = await service.getLeaderboard("players", standardVisibility([7]));
 
   assert.strictEqual(cachedPlayers, players);
   assert.strictEqual(cachedAll, all);
   assert.notStrictEqual(players, all);
-  assert.deepEqual(calls, ["players", "all"]);
+  assert.notStrictEqual(standardPlayers, players);
+  assert.deepEqual(calls, ["players:full", "all:full", "players:standard"]);
   assert.equal(players.population, "players");
   assert.equal(all.population, "all");
   assert.deepEqual(players.coverage, { comprehensiveSince: "2026-08-25T14:30:00.000Z" });
@@ -294,9 +302,9 @@ test("coalesces only concurrent requests for the same population", async () => {
     return new Promise((resolve) => pending.set(population, resolve));
   });
 
-  const firstPlayers = service.getLeaderboard("players");
-  const secondPlayers = service.getLeaderboard("players");
-  const all = service.getLeaderboard("all");
+  const firstPlayers = service.getLeaderboard("players", fullVisibility);
+  const secondPlayers = service.getLeaderboard("players", fullVisibility);
+  const all = service.getLeaderboard("all", fullVisibility);
   assert.deepEqual(calls, ["players", "all"]);
 
   pending.get("players")?.([queryRow()]);
@@ -317,9 +325,12 @@ test("returns failure instead of stale data after an expired refresh fails", asy
     throw new Error("database unavailable");
   }, () => now);
 
-  await service.getLeaderboard("players");
+  await service.getLeaderboard("players", fullVisibility);
   now = 60_001;
 
-  await assert.rejects(() => service.getLeaderboard("players"), /database unavailable/u);
+  await assert.rejects(
+    () => service.getLeaderboard("players", fullVisibility),
+    /database unavailable/u
+  );
   assert.equal(calls, 2);
 });

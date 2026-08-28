@@ -1,4 +1,8 @@
 import { getClassName, getRaceName } from "../domain/wotlk.js";
+import {
+  buildAccountExclusionClause,
+  type AccountVisibilityScope
+} from "./account-visibility.js";
 import type { StatsPopulation } from "./death-leaderboard.js";
 import {
   getStatsDatabase,
@@ -42,7 +46,7 @@ export interface BossKillLeaderboardResponse {
 
 export interface BossKillLeaderboardQuery {
   sql: string;
-  values: readonly [number, number, number, number, string, string, string, string, string, string, string, string];
+  values: readonly (number | string)[];
 }
 
 export interface MappedBossKillRows {
@@ -73,7 +77,8 @@ type BossDatabaseConfig = Pick<StatsDatabaseConfig, "charactersDatabase" | "auth
 
 export function buildBossKillLeaderboardQuery(
   config: BossDatabaseConfig,
-  population: StatsPopulation
+  population: StatsPopulation,
+  visibility: AccountVisibilityScope
 ): BossKillLeaderboardQuery {
   const charactersDatabase = validateStatsDatabaseIdentifier(
     config.charactersDatabase,
@@ -87,6 +92,7 @@ export function buildBossKillLeaderboardQuery(
   const encountersTable = qualified(worldDatabase, "instance_encounters");
   const creaturesTable = qualified(worldDatabase, "creature_template");
   const populationClause = population === "players" ? "      AND e.actor_is_bot = 0\n" : "";
+  const accountExclusion = buildAccountExclusionClause(visibility, "c.account", "      ");
 
   return {
     sql: `WITH boss_entries AS (
@@ -144,7 +150,7 @@ eligible_totals AS (
     JOIN ${charactersTable} c ON c.guid = b.actor_guid
     LEFT JOIN ${accountsTable} a ON a.id = c.account
     WHERE c.deleteDate IS NULL
-    ORDER BY b.bossKills DESC, c.name ASC, b.actor_is_bot ASC
+${accountExclusion.clause}    ORDER BY b.bossKills DESC, c.name ASC, b.actor_is_bot ASC
     LIMIT 25
 )
 SELECT
@@ -172,7 +178,8 @@ ORDER BY e.bossKills DESC, e.characterName ASC, e.isBot ASC`,
       CREATURE_KILL_EVENT,
       CREATURE_KILL_PET_EVENT,
       CREATURE_KILL_EVENT,
-      CREATURE_KILL_PET_EVENT
+      CREATURE_KILL_PET_EVENT,
+      ...accountExclusion.values
     ]
   };
 }
@@ -297,41 +304,55 @@ export function mapBossKillQueryRows(rows: unknown): MappedBossKillRows {
   return { coverage: { firstRecordedAt }, entries: mapBossKillLeaderboardRows(records) };
 }
 
-export type QueryBossKillRows = (population: StatsPopulation) => Promise<unknown>;
+export type QueryBossKillRows = (
+  population: StatsPopulation,
+  visibility: AccountVisibilityScope
+) => Promise<unknown>;
 
-export async function queryBossKillRows(population: StatsPopulation): Promise<unknown> {
+export async function queryBossKillRows(
+  population: StatsPopulation,
+  visibility: AccountVisibilityScope
+): Promise<unknown> {
   const { pool, config } = getStatsDatabase();
   const world = readStatsWorldDatabaseConfig();
-  const query = buildBossKillLeaderboardQuery({ ...config, ...world }, population);
+  const query = buildBossKillLeaderboardQuery({ ...config, ...world }, population, visibility);
   const [rows] = await pool.execute({ sql: query.sql, values: [...query.values], timeout: QUERY_TIMEOUT_MS });
   return rows;
 }
 
 export class BossKillLeaderboardService {
-  private readonly cache = new Map<StatsPopulation, { value: BossKillLeaderboardResponse; expiresAt: number }>();
-  private readonly inFlight = new Map<StatsPopulation, Promise<BossKillLeaderboardResponse>>();
+  private readonly cache = new Map<string, { value: BossKillLeaderboardResponse; expiresAt: number }>();
+  private readonly inFlight = new Map<string, Promise<BossKillLeaderboardResponse>>();
 
   constructor(
     private readonly queryRows: QueryBossKillRows = queryBossKillRows,
     private readonly now: () => number = Date.now
   ) {}
 
-  async getLeaderboard(population: StatsPopulation): Promise<BossKillLeaderboardResponse> {
+  async getLeaderboard(
+    population: StatsPopulation,
+    visibility: AccountVisibilityScope
+  ): Promise<BossKillLeaderboardResponse> {
+    const cacheKey = `${population}:${visibility.cacheKey}`;
     const now = this.now();
-    const cached = this.cache.get(population);
+    const cached = this.cache.get(cacheKey);
     if (cached && now < cached.expiresAt) return cached.value;
-    const active = this.inFlight.get(population);
+    const active = this.inFlight.get(cacheKey);
     if (active) return active;
-    const refresh = this.refresh(population);
+    const refresh = this.refresh(population, visibility, cacheKey);
     const tracked = refresh.finally(() => {
-      if (this.inFlight.get(population) === tracked) this.inFlight.delete(population);
+      if (this.inFlight.get(cacheKey) === tracked) this.inFlight.delete(cacheKey);
     });
-    this.inFlight.set(population, tracked);
+    this.inFlight.set(cacheKey, tracked);
     return tracked;
   }
 
-  private async refresh(population: StatsPopulation): Promise<BossKillLeaderboardResponse> {
-    const mapped = mapBossKillQueryRows(await this.queryRows(population));
+  private async refresh(
+    population: StatsPopulation,
+    visibility: AccountVisibilityScope,
+    cacheKey: string
+  ): Promise<BossKillLeaderboardResponse> {
+    const mapped = mapBossKillQueryRows(await this.queryRows(population, visibility));
     const generatedAt = this.now();
     const response: BossKillLeaderboardResponse = {
       generatedAt: new Date(generatedAt).toISOString(),
@@ -340,13 +361,16 @@ export class BossKillLeaderboardService {
       count: mapped.entries.length,
       entries: mapped.entries
     };
-    this.cache.set(population, { value: response, expiresAt: generatedAt + CACHE_TTL_MS });
+    this.cache.set(cacheKey, { value: response, expiresAt: generatedAt + CACHE_TTL_MS });
     return response;
   }
 }
 
 const bossKillLeaderboardService = new BossKillLeaderboardService();
 
-export function getBossKillLeaderboard(population: StatsPopulation): Promise<BossKillLeaderboardResponse> {
-  return bossKillLeaderboardService.getLeaderboard(population);
+export function getBossKillLeaderboard(
+  population: StatsPopulation,
+  visibility: AccountVisibilityScope
+): Promise<BossKillLeaderboardResponse> {
+  return bossKillLeaderboardService.getLeaderboard(population, visibility);
 }

@@ -1,4 +1,4 @@
-import type { RequestHandler } from "express";
+import type { Request, RequestHandler, Response } from "express";
 import {
   clearSessionCookie,
   readCookie,
@@ -19,13 +19,34 @@ export interface PortalAuthLocals {
   portalSession: ResolvedPortalSession;
 }
 
-interface MiddlewareDependencies {
+export interface PortalSessionMiddlewareDependencies {
   sessions?: PortalSessionStore;
   getSecurityConfig?: () => PortalHttpSecurityConfig;
 }
 
+export function resolveOptionalPortalSession(
+  request: Request,
+  response: Response,
+  dependencies: PortalSessionMiddlewareDependencies = {}
+): ResolvedPortalSession | undefined {
+  const sessions = dependencies.sessions ?? portalSessionStore;
+  const getSecurityConfig = dependencies.getSecurityConfig ?? readPortalHttpSecurityConfig;
+  let config: PortalHttpSecurityConfig;
+  try {
+    config = getSecurityConfig();
+  } catch {
+    return undefined;
+  }
+  const sessionId = readCookie(request, config.sessionCookieName);
+  const session = sessionId ? sessions.resolve(sessionId, false) : undefined;
+  if (!session && sessionId) {
+    clearSessionCookie(response, config);
+  }
+  return session;
+}
+
 export function createRequirePortalSession(
-  dependencies: MiddlewareDependencies = {}
+  dependencies: PortalSessionMiddlewareDependencies = {}
 ): RequestHandler<Record<string, string>, unknown, unknown, unknown, PortalAuthLocals> {
   const sessions = dependencies.sessions ?? portalSessionStore;
   const getSecurityConfig = dependencies.getSecurityConfig ?? readPortalHttpSecurityConfig;
@@ -52,7 +73,7 @@ export function createRequirePortalSession(
 }
 
 export function createRequirePortalMutation(
-  dependencies: MiddlewareDependencies = {}
+  dependencies: PortalSessionMiddlewareDependencies = {}
 ): RequestHandler<Record<string, string>, unknown, unknown, unknown, PortalAuthLocals> {
   const sessions = dependencies.sessions ?? portalSessionStore;
   const getSecurityConfig = dependencies.getSecurityConfig ?? readPortalHttpSecurityConfig;

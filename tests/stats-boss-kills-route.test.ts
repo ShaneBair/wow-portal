@@ -3,11 +3,13 @@ import { createServer } from "node:http";
 import test from "node:test";
 import express, { type RequestHandler } from "express";
 import { createStatsBossKillsRouter } from "../src/routes/stats-boss-kills.js";
+import type { AccountVisibilityScope } from "../src/services/account-visibility.js";
 import {
   BossKillContractIntegrityError,
   type BossKillLeaderboardResponse,
   type StatsPopulation
 } from "../src/services/boss-kill-leaderboard.js";
+import { attachVisibility, fullVisibility } from "./fixtures/account-visibility.js";
 
 const noLimit: RequestHandler = (_request, _response, next) => next();
 
@@ -24,11 +26,14 @@ function result(population: StatsPopulation): BossKillLeaderboardResponse {
 
 async function requestRoute(
   query: string,
-  load: (population: StatsPopulation) => Promise<BossKillLeaderboardResponse>,
+  load: (
+    population: StatsPopulation,
+    visibility: AccountVisibilityScope
+  ) => Promise<BossKillLeaderboardResponse>,
   limiter: RequestHandler = noLimit
 ) {
   const app = express();
-  app.use(createStatsBossKillsRouter(load, limiter));
+  app.use(createStatsBossKillsRouter(load, limiter, attachVisibility(fullVisibility)));
   const server = createServer(app);
   const port = await new Promise<number>((resolve, reject) => {
     server.once("error", reject);
@@ -55,6 +60,7 @@ test("defaults and accepts shared populations with no-store", async () => {
     });
     assert.equal(response.response.status, 200);
     assert.equal(response.response.headers.get("cache-control"), "no-store");
+    assert.equal(response.response.headers.get("vary"), "Cookie");
     assert.equal(received, population);
     assert.deepEqual(response.body, result(population));
   }

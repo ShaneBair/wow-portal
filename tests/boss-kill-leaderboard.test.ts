@@ -9,14 +9,14 @@ import {
   ENCOUNTER_CREDIT_KILL_CREATURE,
   mapBossKillLeaderboardRows,
   mapBossKillQueryRows,
-  TARGET_TYPE_CREATURE,
-  type StatsPopulation
+  TARGET_TYPE_CREATURE
 } from "../src/services/boss-kill-leaderboard.js";
 import {
   readStatsDatabaseConfig,
   readStatsWorldDatabaseConfig,
   StatsDatabaseConfigurationError
 } from "../src/services/stats-database.js";
+import { fullVisibility, standardVisibility } from "./fixtures/account-visibility.js";
 
 const config = {
   charactersDatabase: "acore_characters",
@@ -67,8 +67,8 @@ test("defines compatible boss constants and builds one deduplicated boss-entry s
   assert.equal(CREATURE_ELITE_WORLDBOSS, 3);
   assert.equal(CREATURE_TYPE_FLAG_BOSS_MOB, 0x00000004);
   assert.equal(TARGET_TYPE_CREATURE, 2);
-  const players = buildBossKillLeaderboardQuery(config, "players");
-  const all = buildBossKillLeaderboardQuery(config, "all");
+  const players = buildBossKillLeaderboardQuery(config, "players", fullVisibility);
+  const all = buildBossKillLeaderboardQuery(config, "all", fullVisibility);
   assert.deepEqual(players.values, [
     0, 3, 4, 2,
     "CREATURE_KILL", "direct", "CREATURE_KILL_PET", "pet",
@@ -89,10 +89,20 @@ test("defines compatible boss constants and builds one deduplicated boss-entry s
   assert.match(all.sql, /WHERE c\.deleteDate IS NULL/u);
   assert.match(all.sql, /ORDER BY b\.bossKills DESC, c\.name ASC, b\.actor_is_bot ASC\s+LIMIT 25/u);
   assert.doesNotMatch(all.sql, /flags_extra|email|last_login|sessionkey|verifier|salt/iu);
+
+  const standard = buildBossKillLeaderboardQuery(
+    config,
+    "all",
+    standardVisibility([19, 7])
+  );
+  assert.match(standard.sql, /AND c\.account NOT IN \(\?, \?\)/u);
+  assert.ok(standard.sql.indexOf("c.account NOT IN") < standard.sql.indexOf("ORDER BY"));
+  assert.deepEqual(standard.values.slice(-2), [7, 19]);
+  assert.doesNotMatch(all.sql, /c\.account NOT IN/u);
 });
 
 test("validates the direct/pet event contract and general creature coverage in SQL", () => {
-  const query = buildBossKillLeaderboardQuery(config, "all");
+  const query = buildBossKillLeaderboardQuery(config, "all", fullVisibility);
   for (const pattern of [
     /MIN\(event_time\) AS firstRecordedAt/u,
     /target_type IS NULL OR target_type <> \?/u,
@@ -166,23 +176,27 @@ test("fails closed on contract corruption, malformed rows, and unsafe totals", (
 
 test("separates and coalesces population caches and rejects expired stale fallback", async () => {
   let now = 1_000;
-  const calls: StatsPopulation[] = [];
-  const pending = new Map<StatsPopulation, (rows: unknown[]) => void>();
-  const service = new BossKillLeaderboardService((population) => {
-    calls.push(population);
-    return new Promise((resolve) => pending.set(population, resolve));
+  const calls: string[] = [];
+  const pending = new Map<string, (rows: unknown[]) => void>();
+  const service = new BossKillLeaderboardService((population, visibility) => {
+    const key = `${population}:${visibility.cacheKey}`;
+    calls.push(key);
+    return new Promise((resolve) => pending.set(key, resolve));
   }, () => now);
-  const first = service.getLeaderboard("players");
-  const second = service.getLeaderboard("players");
-  const all = service.getLeaderboard("all");
-  assert.deepEqual(calls, ["players", "all"]);
-  pending.get("players")?.([queryRow()]);
-  pending.get("all")?.([queryRow({ isBot: 1 })]);
+  const first = service.getLeaderboard("players", fullVisibility);
+  const second = service.getLeaderboard("players", fullVisibility);
+  const all = service.getLeaderboard("all", fullVisibility);
+  const standard = service.getLeaderboard("players", standardVisibility([7]));
+  assert.deepEqual(calls, ["players:full", "all:full", "players:standard"]);
+  pending.get("players:full")?.([queryRow()]);
+  pending.get("all:full")?.([queryRow({ isBot: 1 })]);
+  pending.get("players:standard")?.([queryRow({ characterName: "Visible" })]);
   const [firstResult, secondResult] = await Promise.all([first, second]);
   await all;
+  assert.notStrictEqual(await standard, firstResult);
   assert.strictEqual(firstResult, secondResult);
   now = 60_999;
-  assert.strictEqual(await service.getLeaderboard("players"), firstResult);
+  assert.strictEqual(await service.getLeaderboard("players", fullVisibility), firstResult);
 
   let refreshes = 0;
   const expiring = new BossKillLeaderboardService(async () => {
@@ -190,7 +204,10 @@ test("separates and coalesces population caches and rejects expired stale fallba
     if (refreshes === 1) return [queryRow()];
     throw new Error("database unavailable");
   }, () => now);
-  await expiring.getLeaderboard("players");
+  await expiring.getLeaderboard("players", fullVisibility);
   now += 60_001;
-  await assert.rejects(() => expiring.getLeaderboard("players"), /database unavailable/u);
+  await assert.rejects(
+    () => expiring.getLeaderboard("players", fullVisibility),
+    /database unavailable/u
+  );
 });

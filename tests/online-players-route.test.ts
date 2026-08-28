@@ -3,7 +3,9 @@ import { createServer, type Server } from "node:http";
 import test from "node:test";
 import express, { type RequestHandler } from "express";
 import { createOnlinePlayersRouter } from "../src/routes/online-players.js";
+import type { AccountVisibilityScope } from "../src/services/account-visibility.js";
 import type { OnlinePlayersResponse } from "../src/services/online-roster.js";
+import { attachVisibility, fullVisibility } from "./fixtures/account-visibility.js";
 
 const noLimit: RequestHandler = (_req, _res, next) => next();
 
@@ -28,10 +30,10 @@ async function close(server: Server): Promise<void> {
 }
 
 async function requestRoute(
-  load: () => Promise<OnlinePlayersResponse>
+  load: (visibility: AccountVisibilityScope) => Promise<OnlinePlayersResponse>
 ): Promise<{ response: Response; body: unknown }> {
   const app = express();
-  app.use(createOnlinePlayersRouter(load, noLimit));
+  app.use(createOnlinePlayersRouter(load, noLimit, attachVisibility(fullVisibility)));
   const server = createServer(app);
   const port = await listen(server);
 
@@ -49,6 +51,7 @@ test("returns 200 for empty and populated roster responses", async (context) => 
     const { response, body } = await requestRoute(async () => roster);
     assert.equal(response.status, 200);
     assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.equal(response.headers.get("vary"), "Cookie");
     assert.deepEqual(body, roster);
   });
 

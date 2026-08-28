@@ -77,7 +77,7 @@ export class PortalSessionStore {
     return { sessionId, csrfToken, principal: { ...principal } };
   }
 
-  resolve(sessionId: string): ResolvedPortalSession | undefined {
+  resolve(sessionId: string, touch = true): ResolvedPortalSession | undefined {
     if (!isValidOpaqueToken(sessionId)) {
       return undefined;
     }
@@ -95,7 +95,9 @@ export class PortalSessionStore {
       this.sessions.delete(key);
       return undefined;
     }
-    record.lastUsedAt = now;
+    if (touch) {
+      record.lastUsedAt = now;
+    }
     return {
       digestKey: key,
       record,

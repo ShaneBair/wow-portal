@@ -121,6 +121,7 @@ function parseOnlinePlayer(value: unknown): OnlinePlayer | undefined {
 export async function getOnlinePlayers(signal?: AbortSignal): Promise<OnlinePlayersResponse> {
   const response = await fetch("/api/online-players", {
     cache: "no-store",
+    credentials: "same-origin",
     signal
   });
 

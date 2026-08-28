@@ -4,6 +4,7 @@ import {
   OnlineRosterService,
   parseOnlineRosterOutput
 } from "../src/services/online-roster.js";
+import { fullVisibility, standardVisibility } from "./fixtures/account-visibility.js";
 
 const MARKER = "PLAYERSTATS_ONLINE_V1 ";
 
@@ -69,6 +70,18 @@ test("accepts an empty roster", () => {
     count: 0,
     players: []
   });
+});
+
+test("filters every character for hidden account IDs before public mapping and counting", () => {
+  const roster = parseOnlineRosterOutput(output([
+    player({ accountId: 12, characterName: "Hiddenone" }),
+    player({ accountId: 12, characterName: "Hiddentwo" }),
+    player({ accountId: 13, accountLogin: "VISIBLE", characterName: "Visible" })
+  ]), standardVisibility([12]));
+
+  assert.equal(roster.count, 1);
+  assert.deepEqual(roster.players.map((entry) => entry.characterName), ["Visible"]);
+  assert.equal("accountId" in roster.players[0]!, false);
 });
 
 test("accepts decoded SOAP carriage-return whitespace after the payload", () => {
@@ -151,12 +164,32 @@ test("reuses successful cache entries for ten seconds", async () => {
     return { ok: true, output: output([]) };
   }, () => now);
 
-  const first = await service.getOnlinePlayers();
+  const first = await service.getOnlinePlayers(fullVisibility);
   now = 10_999;
-  const second = await service.getOnlinePlayers();
+  const second = await service.getOnlinePlayers(fullVisibility);
 
-  assert.strictEqual(second, first);
+  assert.deepEqual(second, first);
   assert.equal(calls, 1);
+});
+
+test("serves full and standard projections from one validated provider snapshot", async () => {
+  let calls = 0;
+  const service = new OnlineRosterService(async () => {
+    calls += 1;
+    return {
+      ok: true,
+      output: output([
+        player({ accountId: 12, characterName: "Hidden" }),
+        player({ accountId: 13, accountLogin: "VISIBLE", characterName: "Visible" })
+      ])
+    };
+  });
+
+  const full = await service.getOnlinePlayers(fullVisibility);
+  const standard = await service.getOnlinePlayers(standardVisibility([12]));
+  assert.equal(calls, 1);
+  assert.equal(full.count, 2);
+  assert.deepEqual(standard.players.map((entry) => entry.characterName), ["Visible"]);
 });
 
 test("coalesces concurrent cache refreshes", async () => {
@@ -169,13 +202,13 @@ test("coalesces concurrent cache refreshes", async () => {
     });
   });
 
-  const first = service.getOnlinePlayers();
-  const second = service.getOnlinePlayers();
+  const first = service.getOnlinePlayers(fullVisibility);
+  const second = service.getOnlinePlayers(fullVisibility);
 
   assert.equal(calls, 1);
   resolveCommand?.({ ok: true, output: output([player()]) });
   const [firstResult, secondResult] = await Promise.all([first, second]);
-  assert.strictEqual(firstResult, secondResult);
+  assert.deepEqual(firstResult, secondResult);
 });
 
 test("does not serve stale roster data after a refresh failure", async () => {
@@ -188,9 +221,9 @@ test("does not serve stale roster data after a refresh failure", async () => {
       : { ok: false, output: "" };
   }, () => now);
 
-  await service.getOnlinePlayers();
+  await service.getOnlinePlayers(fullVisibility);
   now = 10_001;
 
-  await assert.rejects(() => service.getOnlinePlayers(), /command failed/u);
+  await assert.rejects(() => service.getOnlinePlayers(fullVisibility), /command failed/u);
   assert.equal(calls, 2);
 });
