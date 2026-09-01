@@ -25,6 +25,12 @@ import {
   type PortableHolesSuccess
 } from "../services/portable-hole-boost.js";
 import type { MoneyBoostConfig, PortableHolesBoostConfig } from "../services/boost-config.js";
+import {
+  parseArcaneTomeInput,
+  type ArcaneTomeInput,
+  type ArcaneTomeSuccess
+} from "../services/arcane-tome-boost.js";
+import type { ArcaneTomeBoostConfig } from "../services/boost-config.js";
 import type { PortalSessionStore } from "../services/portal-sessions.js";
 
 const UNAVAILABLE_MESSAGE = "Boosts are temporarily unavailable.";
@@ -36,9 +42,11 @@ export interface BoostsRouterDependencies {
   service?: {
     readMoneyConfig(): MoneyBoostConfig;
     readPortableHolesConfig(): PortableHolesBoostConfig;
+    readArcaneTomeConfig(): ArcaneTomeBoostConfig;
     getOverview(accountId: number): Promise<BoostsOverview>;
     requestMoney(accountId: number, input: MoneyBoostInput): Promise<MoneyBoostSuccess>;
     requestPortableHoles(accountId: number, input: PortableHolesInput): Promise<PortableHolesSuccess>;
+    requestArcaneTome(accountId: number, input: ArcaneTomeInput): Promise<ArcaneTomeSuccess>;
   };
   limiter?: BoostMutationLimiter;
   sessions?: PortalSessionStore;
@@ -176,6 +184,45 @@ export function createBoostsRouter(dependencies: BoostsRouterDependencies = {}):
       }
       const errorKind = error instanceof Error ? error.name : "UnknownError";
       console.error(`Portable Hole boost dependency failed (${errorKind}).`);
+      return response.status(503).json({ error: UNAVAILABLE_MESSAGE });
+    }
+  });
+
+  router.post("/api/boosts/arcane-tome", requireMutation, async (request, response) => {
+    if (!request.is("application/json")) {
+      return response.status(400).json({ error: INVALID_PORTABLE_HOLES_REQUEST_MESSAGE });
+    }
+    let config;
+    try {
+      config = service.readArcaneTomeConfig();
+    } catch (error) {
+      const errorKind = error instanceof Error ? error.name : "UnknownError";
+      console.error(`Arcane Tome boost configuration failed (${errorKind}).`);
+      return response.status(503).json({ error: UNAVAILABLE_MESSAGE });
+    }
+    const input = parseArcaneTomeInput(request.body);
+    if (!input) {
+      return response.status(400).json({ error: INVALID_PORTABLE_HOLES_REQUEST_MESSAGE });
+    }
+    if (!config.enabled) {
+      return response.status(503).json({ error: "This boost is currently unavailable." });
+    }
+    if (!limiter.consume(request.ip ?? "unknown")) {
+      return response.status(429).json({ error: RATE_LIMIT_MESSAGE });
+    }
+
+    const locals = response.locals as PortalAuthLocals;
+    try {
+      const result = await service.requestArcaneTome(locals.authenticatedPrincipal.accountId, input);
+      const { created, ...body } = result;
+      return response.status(created ? 201 : 200).json(body);
+    } catch (error) {
+      if (error instanceof BoostRequestError) {
+        const failure = publicRequestFailure(error, "The tome could not be sent. Try again later.");
+        return response.status(failure.status).json(failure.body);
+      }
+      const errorKind = error instanceof Error ? error.name : "UnknownError";
+      console.error(`Arcane Tome boost dependency failed (${errorKind}).`);
       return response.status(503).json({ error: UNAVAILABLE_MESSAGE });
     }
   });

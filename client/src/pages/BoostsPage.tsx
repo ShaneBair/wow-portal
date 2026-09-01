@@ -3,9 +3,11 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   BoostApiError,
   getBoostOverview,
+  sendArcaneTomeBoost,
   sendMoneyBoost,
   sendPortableHolesBoost,
   type MoneyBoostLimits,
+  type SendArcaneTomeInput,
   type SendMoneyInput,
   type SendPortableHolesInput
 } from "../api/boosts.js";
@@ -48,11 +50,15 @@ export function BoostsPage() {
   const [unknownLocked, setUnknownLocked] = useState(false);
   const [portableConfirmation, setPortableConfirmation] = useState<PortableHolesConfirmation>();
   const [portableMessage, setPortableMessage] = useState<SubmissionMessage>();
+  const [tomeConfirmation, setTomeConfirmation] = useState<PortableHolesConfirmation>();
+  const [tomeMessage, setTomeMessage] = useState<SubmissionMessage>();
   const moneySubmissionGuard = useRef(false);
   const portableSubmissionGuard = useRef(false);
+  const tomeSubmissionGuard = useRef(false);
   const goldInput = useRef<HTMLInputElement>(null);
   const sendBagsButton = useRef<HTMLButtonElement>(null);
   const confirmBagsButton = useRef<HTMLButtonElement>(null);
+  const sendTomeButton = useRef<HTMLButtonElement>(null);
 
   const overviewQuery = useQuery({
     queryKey: ["protected", "boosts", username],
@@ -71,8 +77,11 @@ export function BoostsPage() {
     setUnknownLocked(false);
     setPortableConfirmation(undefined);
     setPortableMessage(undefined);
+    setTomeConfirmation(undefined);
+    setTomeMessage(undefined);
     moneySubmissionGuard.current = false;
     portableSubmissionGuard.current = false;
+    tomeSubmissionGuard.current = false;
   }, [username]);
 
   useEffect(() => {
@@ -155,8 +164,34 @@ export function BoostsPage() {
     }
   });
 
+  const tomeMutation = useMutation({
+    mutationFn: sendArcaneTomeBoost,
+    retry: false,
+    onSuccess: (result) => {
+      tomeSubmissionGuard.current = false;
+      setTomeConfirmation(undefined);
+      setTomeMessage({ tone: "success", text: result.message });
+    },
+    onError: (error: Error, variables: SendArcaneTomeInput) => {
+      tomeSubmissionGuard.current = false;
+      setTomeConfirmation(undefined);
+      if (error instanceof BoostApiError && error.httpStatus === 401) {
+        auth.setSignedOut();
+        return;
+      }
+      const ambiguous = error instanceof BoostApiError &&
+        (error.deliveryStatus === "unknown" || error.deliveryStatus === "pending");
+      setTomeMessage({
+        tone: "error",
+        text: error.message,
+        requestId: ambiguous ? error.requestId ?? variables.requestId : undefined
+      });
+    }
+  });
+
   const limits = overviewQuery.data?.money;
   const portableHoles = overviewQuery.data?.portableHoles;
+  const arcaneTome = overviewQuery.data?.arcaneTome;
   const validationMessage = validateGold(goldText, limits);
   const characters = overviewQuery.data?.characters ?? [];
   const moneyControlsDisabled = moneyMutation.isPending || unknownLocked;
@@ -169,11 +204,17 @@ export function BoostsPage() {
     !overviewQuery.isPending && !overviewQuery.isError && !portableMutation.isPending &&
     !portableConfirmation
   );
+  const canStartArcaneTome = Boolean(
+    authenticatedSession && arcaneTome?.enabled && selectedCharacterId &&
+    !overviewQuery.isPending && !overviewQuery.isError && !tomeMutation.isPending &&
+    !tomeConfirmation
+  );
 
   function changeCharacter(value: string): void {
     setSelectedCharacterId(value);
     setSubmissionMessage(undefined);
     setPortableConfirmation(undefined);
+    setTomeConfirmation(undefined);
   }
 
   function submitMoney(event: FormEvent<HTMLFormElement>): void {
@@ -217,6 +258,30 @@ export function BoostsPage() {
     });
   }
 
+  function startArcaneTomeConfirmation(): void {
+    if (!canStartArcaneTome) return;
+    const character = characters.find((candidate) => candidate.id === selectedCharacterId);
+    if (!character) return;
+    setTomeMessage(undefined);
+    setTomeConfirmation({ characterId: character.id, characterName: character.name });
+  }
+
+  function cancelArcaneTomeConfirmation(): void {
+    setTomeConfirmation(undefined);
+    requestAnimationFrame(() => sendTomeButton.current?.focus());
+  }
+
+  function confirmArcaneTome(): void {
+    if (!tomeConfirmation || !authenticatedSession || tomeSubmissionGuard.current) return;
+    tomeSubmissionGuard.current = true;
+    setTomeMessage(undefined);
+    tomeMutation.mutate({
+      requestId: crypto.randomUUID(),
+      characterId: tomeConfirmation.characterId,
+      csrfToken: authenticatedSession.csrfToken
+    });
+  }
+
   return (
     <main>
       <DocumentTitle>Boosts | DaBoysZeroth</DocumentTitle>
@@ -229,7 +294,7 @@ export function BoostsPage() {
         <h2 id="boost-character-heading">Character</h2>
         <label htmlFor="boost-character">Choose a character</label>
         <select id="boost-character" value={selectedCharacterId}
-          disabled={overviewQuery.isPending || overviewQuery.isError || characters.length === 0 || moneyMutation.isPending || portableMutation.isPending || unknownLocked}
+          disabled={overviewQuery.isPending || overviewQuery.isError || characters.length === 0 || moneyMutation.isPending || portableMutation.isPending || tomeMutation.isPending || unknownLocked}
           onChange={(event) => changeCharacter(event.target.value)}>
           <option value="">Select a character</option>
           {characters.map((character) => <option key={character.id} value={character.id}>
@@ -286,6 +351,30 @@ export function BoostsPage() {
           {portableMessage && <div className={`message ${portableMessage.tone}`} role="status" aria-live="polite">
             <p>{portableMessage.text}</p>
             {portableMessage.requestId && <p>Request ID: <code>{portableMessage.requestId}</code></p>}
+          </div>}
+        </section>
+
+        <section className="panel boost-card" aria-labelledby="arcane-tome-heading">
+          <h2 id="arcane-tome-heading">Tomeward Bound</h2>
+          <p>Mail the selected character a reusable Arcane Tome of Displacement that opens the server&apos;s configured travel menu.</p>
+          <p className="field-help"><strong>Unique:</strong> each character can own only one at a time.</p>
+          {arcaneTome && !arcaneTome.enabled && <p className="message error" role="status">This boost is currently unavailable.</p>}
+          {!tomeConfirmation && <button ref={sendTomeButton} type="button" disabled={!canStartArcaneTome} onClick={startArcaneTomeConfirmation}>
+            {tomeMutation.isPending ? "Sending tome..." : "Send tome"}
+          </button>}
+          {tomeConfirmation && <div className="boost-confirmation" role="group" aria-labelledby="arcane-tome-confirmation-heading">
+            <h3 id="arcane-tome-confirmation-heading">Confirm tome delivery</h3>
+            <p>Send one Arcane Tome of Displacement to {tomeConfirmation.characterName} by in-game mail?</p>
+            <div className="boost-confirmation-actions">
+              <button type="button" disabled={tomeMutation.isPending} onClick={confirmArcaneTome}>
+                {tomeMutation.isPending ? "Sending tome..." : "Confirm"}
+              </button>
+              <button type="button" className="secondary" disabled={tomeMutation.isPending} onClick={cancelArcaneTomeConfirmation}>Cancel</button>
+            </div>
+          </div>}
+          {tomeMessage && <div className={`message ${tomeMessage.tone}`} role="status" aria-live="polite">
+            <p>{tomeMessage.text}</p>
+            {tomeMessage.requestId && <p>Request ID: <code>{tomeMessage.requestId}</code></p>}
           </div>}
         </section>
       </div>

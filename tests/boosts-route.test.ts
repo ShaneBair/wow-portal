@@ -7,6 +7,7 @@ import { BoostMutationLimiter } from "../src/services/boost-mutation-limiter.js"
 import type { PortalHttpSecurityConfig } from "../src/services/auth-http.js";
 import { BoostRequestError, type MoneyBoostInput } from "../src/services/player-boosts.js";
 import type { PortableHolesInput } from "../src/services/portable-hole-boost.js";
+import type { ArcaneTomeInput } from "../src/services/arcane-tome-boost.js";
 import { PortalSessionStore } from "../src/services/portal-sessions.js";
 
 const origin = "http://127.0.0.1:5173";
@@ -29,6 +30,13 @@ const portableHoles = {
   itemName: "Portable Hole" as const,
   itemCount: 4 as const,
   slotsPerBag: 24 as const,
+  repeatable: true as const
+};
+const arcaneTome = {
+  enabled: true,
+  name: "Tomeward Bound" as const,
+  itemName: "Arcane Tome of Displacement" as const,
+  itemCount: 1 as const,
   repeatable: true as const
 };
 
@@ -55,10 +63,12 @@ async function close(server: Server): Promise<void> {
 interface TestService {
   readMoneyConfig(): typeof limits;
   readPortableHolesConfig(): { enabled: boolean };
+  readArcaneTomeConfig(): { enabled: boolean };
   getOverview(accountId: number): Promise<{
     characters: Array<{ id: string; name: string; level: number; race: string; class: string }>;
     money: typeof limits;
     portableHoles: typeof portableHoles;
+    arcaneTome: typeof arcaneTome;
   }>;
   requestMoney(accountId: number, input: MoneyBoostInput): Promise<{
     requestId: string;
@@ -67,6 +77,12 @@ interface TestService {
     created: boolean;
   }>;
   requestPortableHoles(accountId: number, input: PortableHolesInput): Promise<{
+    requestId: string;
+    status: "sent";
+    message: string;
+    created: boolean;
+  }>;
+  requestArcaneTome(accountId: number, input: ArcaneTomeInput): Promise<{
     requestId: string;
     status: "sent";
     message: string;
@@ -85,12 +101,14 @@ async function withBoostServer<T>(
   const service: TestService = {
     readMoneyConfig: () => limits,
     readPortableHolesConfig: () => ({ enabled: true }),
+    readArcaneTomeConfig: () => ({ enabled: true }),
     getOverview: async (accountId) => {
       assert.equal(accountId, 7);
       return {
         characters: [{ id: "42", name: "Thalgrim", level: 80, race: "Dwarf", class: "Paladin" }],
         money: limits,
-        portableHoles
+        portableHoles,
+        arcaneTome
       };
     },
     requestMoney: async (accountId, input) => ({
@@ -103,6 +121,12 @@ async function withBoostServer<T>(
       requestId: input.requestId,
       status: "sent",
       message: "Four Portable Holes were sent to Thalgrim by in-game mail.",
+      created: accountId === 7
+    }),
+    requestArcaneTome: async (accountId, input) => ({
+      requestId: input.requestId,
+      status: "sent",
+      message: "An Arcane Tome of Displacement was sent to Thalgrim by in-game mail.",
       created: accountId === 7
     }),
     ...serviceOverrides
@@ -166,6 +190,25 @@ function postMoney(
   });
 }
 
+function postArcaneTome(
+  baseUrl: string,
+  authorization: { cookie: string; csrfToken: string },
+  overrides: RequestInit = {}
+): Promise<Response> {
+  return fetch(`${baseUrl}/api/boosts/arcane-tome`, {
+    method: "POST",
+    ...overrides,
+    headers: {
+      "Content-Type": "application/json",
+      Origin: origin,
+      Cookie: authorization.cookie,
+      "X-CSRF-Token": authorization.csrfToken,
+      ...overrides.headers
+    },
+    body: overrides.body ?? JSON.stringify({ requestId, characterId: "42" })
+  });
+}
+
 test("protects and returns the no-store character overview", async () => {
   await withBoostServer(async (baseUrl, authorization) => {
     const anonymous = await fetch(`${baseUrl}/api/boosts`);
@@ -180,7 +223,8 @@ test("protects and returns the no-store character overview", async () => {
     assert.deepEqual(await response.json(), {
       characters: [{ id: "42", name: "Thalgrim", level: 80, race: "Dwarf", class: "Paladin" }],
       money: limits,
-      portableHoles
+      portableHoles,
+      arcaneTome
     });
   });
 });
@@ -333,6 +377,36 @@ test("fails Portable Holes closed before consuming the shared burst limit", asyn
   }, {
     readPortableHolesConfig: () => ({ enabled: false })
   }, limiter);
+});
+
+test("validates and sends only the server-owned Arcane Tome contract", async () => {
+  const received: Array<[number, ArcaneTomeInput]> = [];
+  await withBoostServer(async (baseUrl, authorization) => {
+    assert.equal((await postArcaneTome(baseUrl, authorization, {
+      body: JSON.stringify({ requestId, characterId: "42", itemEntry: 900001 })
+    })).status, 400);
+    assert.equal((await postArcaneTome(baseUrl, authorization, {
+      body: JSON.stringify({ requestId, characterId: "42", count: 1 })
+    })).status, 400);
+    const response = await postArcaneTome(baseUrl, authorization);
+    assert.equal(response.status, 201);
+    assert.deepEqual(await response.json(), {
+      requestId,
+      status: "sent",
+      message: "An Arcane Tome of Displacement was sent to Thalgrim by in-game mail."
+    });
+    assert.deepEqual(received, [[7, { requestId, characterId: "42" }]]);
+  }, {
+    requestArcaneTome: async (accountId, input) => {
+      received.push([accountId, input]);
+      return {
+        requestId: input.requestId,
+        status: "sent",
+        message: "An Arcane Tome of Displacement was sent to Thalgrim by in-game mail.",
+        created: true
+      };
+    }
+  });
 });
 
 test("redacts dependency failures", async () => {

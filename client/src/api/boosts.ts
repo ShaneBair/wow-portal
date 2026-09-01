@@ -25,10 +25,19 @@ export interface PortableHolesBoostMetadata {
   repeatable: true;
 }
 
+export interface ArcaneTomeBoostMetadata {
+  enabled: boolean;
+  name: "Tomeward Bound";
+  itemName: "Arcane Tome of Displacement";
+  itemCount: 1;
+  repeatable: true;
+}
+
 export interface BoostOverview {
   characters: BoostCharacter[];
   money: MoneyBoostLimits;
   portableHoles: PortableHolesBoostMetadata;
+  arcaneTome: ArcaneTomeBoostMetadata;
 }
 
 export interface SendMoneyInput {
@@ -51,6 +60,9 @@ export interface SendPortableHolesInput {
 }
 
 export type SendPortableHolesResult = SendMoneyResult;
+
+export type SendArcaneTomeInput = SendPortableHolesInput;
+export type SendArcaneTomeResult = SendMoneyResult;
 
 export class BoostApiError extends PortalApiError {
   constructor(
@@ -114,13 +126,15 @@ function parseOverview(value: unknown): BoostOverview | undefined {
     !isRecord(value) ||
     !Array.isArray(value.characters) ||
     !isRecord(value.money) ||
-    !isRecord(value.portableHoles)
+    !isRecord(value.portableHoles) ||
+    !isRecord(value.arcaneTome)
   ) {
     return undefined;
   }
   const characters = value.characters.map(parseCharacter);
   const money = value.money;
   const portableHoles = value.portableHoles;
+  const arcaneTome = value.arcaneTome;
   if (
     characters.some((character) => character === undefined) ||
     typeof money.enabled !== "boolean" ||
@@ -133,7 +147,12 @@ function parseOverview(value: unknown): BoostOverview | undefined {
     portableHoles.itemName !== "Portable Hole" ||
     portableHoles.itemCount !== 4 ||
     portableHoles.slotsPerBag !== 24 ||
-    portableHoles.repeatable !== true
+    portableHoles.repeatable !== true ||
+    typeof arcaneTome.enabled !== "boolean" ||
+    arcaneTome.name !== "Tomeward Bound" ||
+    arcaneTome.itemName !== "Arcane Tome of Displacement" ||
+    arcaneTome.itemCount !== 1 ||
+    arcaneTome.repeatable !== true
   ) {
     return undefined;
   }
@@ -153,6 +172,13 @@ function parseOverview(value: unknown): BoostOverview | undefined {
       itemCount: portableHoles.itemCount,
       slotsPerBag: portableHoles.slotsPerBag,
       repeatable: portableHoles.repeatable
+    },
+    arcaneTome: {
+      enabled: arcaneTome.enabled,
+      name: arcaneTome.name,
+      itemName: arcaneTome.itemName,
+      itemCount: arcaneTome.itemCount,
+      repeatable: arcaneTome.repeatable
     }
   };
 }
@@ -277,6 +303,53 @@ export async function sendPortableHolesBoost(
     body.status !== "sent" ||
     typeof body.message !== "string" ||
     body.message.length > 256
+  ) {
+    throw new BoostApiError(unknownMessage, response.status, "unknown", input.requestId);
+  }
+  return { requestId: input.requestId, status: "sent", message: body.message };
+}
+
+export async function sendArcaneTomeBoost(
+  input: SendArcaneTomeInput
+): Promise<SendArcaneTomeResult> {
+  const unknownMessage =
+    "Delivery could not be confirmed and may already have arrived. Check your in-game mail before sending another tome.";
+  let response: Response;
+  try {
+    response = await fetch("/api/boosts/arcane-tome", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-Token": input.csrfToken
+      },
+      credentials: "same-origin",
+      body: JSON.stringify({ requestId: input.requestId, characterId: input.characterId })
+    });
+  } catch {
+    throw new BoostApiError(unknownMessage, 0, "unknown", input.requestId);
+  }
+
+  let body: unknown;
+  try {
+    body = await response.json() as unknown;
+  } catch {
+    throw new BoostApiError(unknownMessage, response.status, "unknown", input.requestId);
+  }
+  if (!response.ok) {
+    const status = isRecord(body) && (body.status === "pending" || body.status === "unknown")
+      ? body.status
+      : undefined;
+    const requestId = isRecord(body) && typeof body.requestId === "string" ? body.requestId : undefined;
+    throw new BoostApiError(
+      readPublicError(body, "The tome could not be sent. Try again later."),
+      response.status,
+      status,
+      requestId
+    );
+  }
+  if (
+    !isRecord(body) || body.requestId !== input.requestId || body.status !== "sent" ||
+    typeof body.message !== "string" || body.message.length > 256
   ) {
     throw new BoostApiError(unknownMessage, response.status, "unknown", input.requestId);
   }

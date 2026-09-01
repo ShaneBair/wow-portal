@@ -15,6 +15,10 @@ export interface PortableHolesBoostConfig {
   enabled: boolean;
 }
 
+export interface ArcaneTomeBoostConfig {
+  enabled: boolean;
+}
+
 export class BoostConfigurationError extends Error {
   constructor(message: string) {
     super(message);
@@ -88,6 +92,17 @@ export function readPortableHolesBoostConfig(
     enabled: readEnabled(
       environment.BOOST_PORTABLE_HOLES_ENABLED,
       "BOOST_PORTABLE_HOLES_ENABLED"
+    )
+  };
+}
+
+export function readArcaneTomeBoostConfig(
+  environment: NodeJS.ProcessEnv = process.env
+): ArcaneTomeBoostConfig {
+  return {
+    enabled: readEnabled(
+      environment.BOOST_ARCANE_TOME_ENABLED,
+      "BOOST_ARCANE_TOME_ENABLED"
     )
   };
 }

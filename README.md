@@ -193,6 +193,12 @@ Portable Holes through AzerothCore's `send items` command. Apply
 51809, exact command output, offline four-attachment delivery, the narrow SOAP permission, replay,
 and ambiguous-result reconciliation have been verified against the deployed core revision.
 
+Tomeward Bound uses the same workflow to mail exactly one Arcane Tome of Displacement (fixed
+item entry `900001`). Apply `migrations/003_create_arcane_tome_boost_requests.sql` and its
+least-privilege grants before deployment. Keep `BOOST_ARCANE_TOME_ENABLED=false` until exact
+command output, offline delivery, replay and reconciliation behavior, and the unique-item
+duplicate-delivery policy have been explicitly verified and approved.
+
 ## Verification
 
 Run strict server/client builds and mocked server/frontend tests without contacting the live

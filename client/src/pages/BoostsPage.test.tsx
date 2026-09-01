@@ -30,6 +30,13 @@ const overview = {
     itemCount: 4,
     slotsPerBag: 24,
     repeatable: true
+  },
+  arcaneTome: {
+    enabled: true,
+    name: "Tomeward Bound",
+    itemName: "Arcane Tome of Displacement",
+    itemCount: 1,
+    repeatable: true
   }
 };
 
@@ -76,6 +83,7 @@ function standardFetch(options: {
   overview?: () => Promise<Response>;
   money?: (init?: RequestInit) => Promise<Response>;
   portableHoles?: (init?: RequestInit) => Promise<Response>;
+  arcaneTome?: (init?: RequestInit) => Promise<Response>;
 } = {}): typeof fetch {
   return (input, init) => {
     const path = pathOf(input);
@@ -99,6 +107,13 @@ function standardFetch(options: {
         message: "Four Portable Holes were sent to Thalgrim by in-game mail."
       }, 201));
     }
+    if (path === "/api/boosts/arcane-tome") {
+      return options.arcaneTome?.(init) ?? Promise.resolve(jsonResponse({
+        requestId,
+        status: "sent",
+        message: "An Arcane Tome of Displacement was sent to Thalgrim by in-game mail."
+      }, 201));
+    }
     return Promise.resolve(jsonResponse({ error: "Not found." }, 404));
   };
 }
@@ -118,6 +133,8 @@ describe("Boosts page", () => {
     expect(screen.getByText(/1–10,000 whole gold per request/u)).toBeTruthy();
     expect(screen.getByRole("heading", { level: 2, name: "Hole Lotta Storage" })).toBeTruthy();
     expect(screen.getByText(/four 24-slot Portable Holes/u)).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 2, name: "Tomeward Bound" })).toBeTruthy();
+    expect(screen.getByText("each character can own only one at a time.", { exact: false })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Send gold" }).hasAttribute("disabled")).toBe(true);
     await waitFor(() => expect(document.title).toBe("Boosts | DaBoysZeroth"));
   });
@@ -229,6 +246,40 @@ describe("Boosts page", () => {
     expect(screen.getByText(requestId)).toBeTruthy();
   });
 
+  it("confirms and sends one fixed Arcane Tome, then preserves an unknown warning", async () => {
+    let call = 0;
+    let sentInit: RequestInit | undefined;
+    renderBoosts(standardFetch({
+      arcaneTome: (init) => {
+        call += 1;
+        sentInit = init;
+        return Promise.resolve(call === 1 ? jsonResponse({
+          requestId,
+          status: "sent",
+          message: "An Arcane Tome of Displacement was sent to Thalgrim by in-game mail."
+        }, 201) : jsonResponse({
+          requestId,
+          status: "unknown",
+          error: "Delivery could not be confirmed and may already have arrived. Check your in-game mail before sending another tome."
+        }, 503));
+      }
+    }));
+    const user = userEvent.setup();
+    const send = await screen.findByRole<HTMLButtonElement>("button", { name: "Send tome" });
+    await waitFor(() => expect(send.disabled).toBe(false));
+    await user.click(send);
+    expect(screen.getByText("Send one Arcane Tome of Displacement to Thalgrim by in-game mail?")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Confirm" }));
+    expect(await screen.findByText("An Arcane Tome of Displacement was sent to Thalgrim by in-game mail.")).toBeTruthy();
+    expect(JSON.parse(String(sentInit?.body))).toEqual({ requestId, characterId: "42" });
+
+    await user.click(screen.getByRole("button", { name: "Send tome" }));
+    await user.click(screen.getByRole("button", { name: "Confirm" }));
+    expect(await screen.findByText(/Check your in-game mail before sending another tome/u)).toBeTruthy();
+    await user.selectOptions(screen.getByLabelText("Choose a character"), "77");
+    expect(screen.getByText(requestId)).toBeTruthy();
+  });
+
   it("cancels an unsubmitted bag confirmation when the character changes", async () => {
     renderBoosts(standardFetch());
     const user = userEvent.setup();
@@ -265,12 +316,13 @@ describe("Boosts page", () => {
       overview: () => Promise.resolve(jsonResponse({
         characters: [],
         money: { ...overview.money, enabled: false },
-        portableHoles: { ...overview.portableHoles, enabled: false }
+        portableHoles: { ...overview.portableHoles, enabled: false },
+        arcaneTome: { ...overview.arcaneTome, enabled: false }
       }))
     }));
     expect(await screen.findByText("This account does not have any characters yet.")).toBeTruthy();
     expect(screen.getByText("Free Money is currently disabled.")).toBeTruthy();
-    expect(screen.getByText("This boost is currently unavailable.")).toBeTruthy();
+    expect(screen.getAllByText("This boost is currently unavailable.")).toHaveLength(2);
     empty.unmount();
 
     renderBoosts(standardFetch({
