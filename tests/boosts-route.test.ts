@@ -8,6 +8,7 @@ import type { PortalHttpSecurityConfig } from "../src/services/auth-http.js";
 import { BoostRequestError, type MoneyBoostInput } from "../src/services/player-boosts.js";
 import type { PortableHolesInput } from "../src/services/portable-hole-boost.js";
 import type { ArcaneTomeInput } from "../src/services/arcane-tome-boost.js";
+import type { CharacterLevelInput } from "../src/services/character-level-boost.js";
 import { PortalSessionStore } from "../src/services/portal-sessions.js";
 
 const origin = "http://127.0.0.1:5173";
@@ -39,6 +40,12 @@ const arcaneTome = {
   itemCount: 1 as const,
   repeatable: true as const
 };
+const characterLevel = {
+  enabled: true,
+  name: "Level Up, Buttercup" as const,
+  maximumLevel: 80 as const,
+  xpWillReset: true as const
+};
 
 async function listen(server: Server): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -64,11 +71,13 @@ interface TestService {
   readMoneyConfig(): typeof limits;
   readPortableHolesConfig(): { enabled: boolean };
   readArcaneTomeConfig(): { enabled: boolean };
+  readCharacterLevelConfig(): { enabled: boolean };
   getOverview(accountId: number): Promise<{
     characters: Array<{ id: string; name: string; level: number; race: string; class: string }>;
     money: typeof limits;
     portableHoles: typeof portableHoles;
     arcaneTome: typeof arcaneTome;
+    characterLevel: typeof characterLevel;
   }>;
   requestMoney(accountId: number, input: MoneyBoostInput): Promise<{
     requestId: string;
@@ -88,6 +97,13 @@ interface TestService {
     message: string;
     created: boolean;
   }>;
+  requestCharacterLevel(accountId: number, input: CharacterLevelInput): Promise<{
+    requestId: string;
+    status: "applied";
+    character: { id: string; name: string; level: number };
+    message: string;
+    created: boolean;
+  }>;
 }
 
 async function withBoostServer<T>(
@@ -102,13 +118,15 @@ async function withBoostServer<T>(
     readMoneyConfig: () => limits,
     readPortableHolesConfig: () => ({ enabled: true }),
     readArcaneTomeConfig: () => ({ enabled: true }),
+    readCharacterLevelConfig: () => ({ enabled: true }),
     getOverview: async (accountId) => {
       assert.equal(accountId, 7);
       return {
         characters: [{ id: "42", name: "Thalgrim", level: 80, race: "Dwarf", class: "Paladin" }],
         money: limits,
         portableHoles,
-        arcaneTome
+        arcaneTome,
+        characterLevel
       };
     },
     requestMoney: async (accountId, input) => ({
@@ -127,6 +145,13 @@ async function withBoostServer<T>(
       requestId: input.requestId,
       status: "sent",
       message: "An Arcane Tome of Displacement was sent to Thalgrim by in-game mail.",
+      created: accountId === 7
+    }),
+    requestCharacterLevel: async (accountId, input) => ({
+      requestId: input.requestId,
+      status: "applied",
+      character: { id: input.characterId, name: "Thalgrim", level: input.targetLevel },
+      message: `Thalgrim is now level ${input.targetLevel}.`,
       created: accountId === 7
     }),
     ...serviceOverrides
@@ -209,6 +234,22 @@ function postArcaneTome(
   });
 }
 
+function postCharacterLevel(
+  baseUrl: string,
+  authorization: { cookie: string; csrfToken: string },
+  overrides: RequestInit = {}
+): Promise<Response> {
+  return fetch(`${baseUrl}/api/boosts/character-level`, {
+    method: "POST",
+    ...overrides,
+    headers: {
+      "Content-Type": "application/json", Origin: origin, Cookie: authorization.cookie,
+      "X-CSRF-Token": authorization.csrfToken, ...overrides.headers
+    },
+    body: overrides.body ?? JSON.stringify({ requestId, characterId: "42", targetLevel: 60 })
+  });
+}
+
 test("protects and returns the no-store character overview", async () => {
   await withBoostServer(async (baseUrl, authorization) => {
     const anonymous = await fetch(`${baseUrl}/api/boosts`);
@@ -224,7 +265,8 @@ test("protects and returns the no-store character overview", async () => {
       characters: [{ id: "42", name: "Thalgrim", level: 80, race: "Dwarf", class: "Paladin" }],
       money: limits,
       portableHoles,
-      arcaneTome
+      arcaneTome,
+      characterLevel
     });
   });
 });
@@ -302,15 +344,15 @@ test("maps ownership, replay conflict, and unknown delivery without leaking inte
   }
 });
 
-test("shares five boost submissions per client minute across both boost endpoints", async () => {
+test("shares five boost submissions per client minute across every boost endpoint", async () => {
   await withBoostServer(async (baseUrl, authorization) => {
-    for (let attempt = 0; attempt < 3; attempt += 1) {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
       assert.equal((await postMoney(baseUrl, authorization)).status, 201);
     }
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      assert.equal((await postPortableHoles(baseUrl, authorization)).status, 201);
-    }
-    const limited = await postPortableHoles(baseUrl, authorization);
+    assert.equal((await postPortableHoles(baseUrl, authorization)).status, 201);
+    assert.equal((await postArcaneTome(baseUrl, authorization)).status, 201);
+    assert.equal((await postCharacterLevel(baseUrl, authorization)).status, 201);
+    const limited = await postCharacterLevel(baseUrl, authorization);
     assert.equal(limited.status, 429);
     assert.deepEqual(await limited.json(), { error: "Too many boost submissions. Try again later." });
   });
@@ -407,6 +449,53 @@ test("validates and sends only the server-owned Arcane Tome contract", async () 
       };
     }
   });
+});
+
+test("validates and applies only an absolute bounded character level target", async () => {
+  const received: Array<[number, CharacterLevelInput]> = [];
+  await withBoostServer(async (baseUrl, authorization) => {
+    for (const body of [
+      { requestId, characterId: "42", targetLevel: 81 },
+      { requestId, characterId: "42", targetLevel: 60.5 },
+      { requestId, characterId: "42", targetLevel: 60, currentLevel: 39 },
+      { requestId, characterId: "42", targetLevel: 60, command: "character level Other 1" }
+    ]) assert.equal((await postCharacterLevel(baseUrl, authorization, { body: JSON.stringify(body) })).status, 400);
+
+    const response = await postCharacterLevel(baseUrl, authorization);
+    assert.equal(response.status, 201);
+    assert.deepEqual(await response.json(), {
+      requestId,
+      status: "applied",
+      character: { id: "42", name: "Thalgrim", level: 60 },
+      message: "Thalgrim is now level 60."
+    });
+    assert.deepEqual(received, [[7, { requestId, characterId: "42", targetLevel: 60 }]]);
+  }, {
+    requestCharacterLevel: async (accountId, input) => {
+      received.push([accountId, input]);
+      return {
+        requestId: input.requestId, status: "applied",
+        character: { id: input.characterId, name: "Thalgrim", level: input.targetLevel },
+        message: `Thalgrim is now level ${input.targetLevel}.`, created: true
+      };
+    }
+  });
+});
+
+test("fails Character Level closed before consuming the shared burst limit", async () => {
+  const limiter = new BoostMutationLimiter(() => 0);
+  await withBoostServer(async (baseUrl, authorization) => {
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      const response = await postCharacterLevel(baseUrl, authorization);
+      assert.equal(response.status, 503);
+      assert.deepEqual(await response.json(), { error: "This boost is currently unavailable." });
+    }
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      assert.equal((await postMoney(baseUrl, authorization)).status, 201);
+    }
+  }, {
+    readCharacterLevelConfig: () => ({ enabled: false })
+  }, limiter);
 });
 
 test("redacts dependency failures", async () => {

@@ -19,6 +19,10 @@ export interface ArcaneTomeBoostConfig {
   enabled: boolean;
 }
 
+export interface CharacterLevelBoostConfig {
+  enabled: boolean;
+}
+
 export class BoostConfigurationError extends Error {
   constructor(message: string) {
     super(message);
@@ -103,6 +107,17 @@ export function readArcaneTomeBoostConfig(
     enabled: readEnabled(
       environment.BOOST_ARCANE_TOME_ENABLED,
       "BOOST_ARCANE_TOME_ENABLED"
+    )
+  };
+}
+
+export function readCharacterLevelBoostConfig(
+  environment: NodeJS.ProcessEnv = process.env
+): CharacterLevelBoostConfig {
+  return {
+    enabled: readEnabled(
+      environment.BOOST_CHARACTER_LEVEL_ENABLED,
+      "BOOST_CHARACTER_LEVEL_ENABLED"
     )
   };
 }

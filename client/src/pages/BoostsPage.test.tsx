@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -37,6 +37,12 @@ const overview = {
     itemName: "Arcane Tome of Displacement",
     itemCount: 1,
     repeatable: true
+  },
+  characterLevel: {
+    enabled: true,
+    name: "Level Up, Buttercup",
+    maximumLevel: 80,
+    xpWillReset: true
   }
 };
 
@@ -84,6 +90,7 @@ function standardFetch(options: {
   money?: (init?: RequestInit) => Promise<Response>;
   portableHoles?: (init?: RequestInit) => Promise<Response>;
   arcaneTome?: (init?: RequestInit) => Promise<Response>;
+  characterLevel?: (init?: RequestInit) => Promise<Response>;
 } = {}): typeof fetch {
   return (input, init) => {
     const path = pathOf(input);
@@ -114,6 +121,14 @@ function standardFetch(options: {
         message: "An Arcane Tome of Displacement was sent to Thalgrim by in-game mail."
       }, 201));
     }
+    if (path === "/api/boosts/character-level") {
+      return options.characterLevel?.(init) ?? Promise.resolve(jsonResponse({
+        requestId,
+        status: "applied",
+        character: { id: "77", name: "Zaria", level: 60 },
+        message: "Zaria is now level 60."
+      }, 201));
+    }
     return Promise.resolve(jsonResponse({ error: "Not found." }, 404));
   };
 }
@@ -135,6 +150,8 @@ describe("Boosts page", () => {
     expect(screen.getByText(/four 24-slot Portable Holes/u)).toBeTruthy();
     expect(screen.getByRole("heading", { level: 2, name: "Tomeward Bound" })).toBeTruthy();
     expect(screen.getByText("each character can own only one at a time.", { exact: false })).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 2, name: "Level Up, Buttercup" })).toBeTruthy();
+    expect(screen.getByText("This character is already at the maximum level.")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Send gold" }).hasAttribute("disabled")).toBe(true);
     await waitFor(() => expect(document.title).toBe("Boosts | DaBoysZeroth"));
   });
@@ -280,6 +297,55 @@ describe("Boosts page", () => {
     expect(screen.getByText(requestId)).toBeTruthy();
   });
 
+  it("shows authoritative slider bounds, resets per character, and applies a level boost", async () => {
+    let levelInit: RequestInit | undefined;
+    renderBoosts(standardFetch({
+      characterLevel: (init) => {
+        levelInit = init;
+        return Promise.resolve(jsonResponse({
+          requestId,
+          status: "applied",
+          character: { id: "77", name: "Zaria", level: 60 },
+          message: "Zaria is now level 60."
+        }, 201));
+      }
+    }));
+    const user = userEvent.setup();
+    const selector = await screen.findByLabelText<HTMLSelectElement>("Choose a character");
+    await screen.findByRole("option", { name: /Zaria/u });
+    await user.selectOptions(selector, "77");
+    const slider = screen.getByLabelText<HTMLInputElement>("Target level");
+    expect(slider.min).toBe("41");
+    expect(slider.max).toBe("80");
+    expect(slider.step).toBe("1");
+    expect(slider.value).toBe("41");
+    expect(screen.getByText("Your current experience progress will reset when the level changes.")).toBeTruthy();
+
+    fireEvent.change(slider, { target: { value: "60" } });
+    expect(slider.value).toBe("60");
+    await user.click(screen.getByRole("button", { name: "Raise level" }));
+    expect(screen.getByText("Raise Zaria from level 40 to level 60? Current experience progress will reset.")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Confirm level boost" }));
+    expect(await screen.findByText("Zaria is now level 60.")).toBeTruthy();
+    expect(JSON.parse(String(levelInit?.body))).toEqual({ requestId, characterId: "77", targetLevel: 60 });
+  });
+
+  it("cancels level confirmation and resets target when the selected character changes", async () => {
+    renderBoosts(standardFetch());
+    const user = userEvent.setup();
+    const selector = await screen.findByLabelText<HTMLSelectElement>("Choose a character");
+    await screen.findByRole("option", { name: /Zaria/u });
+    await user.selectOptions(selector, "77");
+    const slider = screen.getByLabelText<HTMLInputElement>("Target level");
+    fireEvent.change(slider, { target: { value: "60" } });
+    await user.click(screen.getByRole("button", { name: "Raise level" }));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "Raise level" })));
+    await user.selectOptions(selector, "42");
+    expect(screen.queryByLabelText("Target level")).toBeNull();
+    expect(screen.getByText("This character is already at the maximum level.")).toBeTruthy();
+  });
+
   it("cancels an unsubmitted bag confirmation when the character changes", async () => {
     renderBoosts(standardFetch());
     const user = userEvent.setup();
@@ -317,12 +383,13 @@ describe("Boosts page", () => {
         characters: [],
         money: { ...overview.money, enabled: false },
         portableHoles: { ...overview.portableHoles, enabled: false },
-        arcaneTome: { ...overview.arcaneTome, enabled: false }
+        arcaneTome: { ...overview.arcaneTome, enabled: false },
+        characterLevel: { ...overview.characterLevel, enabled: false }
       }))
     }));
     expect(await screen.findByText("This account does not have any characters yet.")).toBeTruthy();
     expect(screen.getByText("Free Money is currently disabled.")).toBeTruthy();
-    expect(screen.getAllByText("This boost is currently unavailable.")).toHaveLength(2);
+    expect(screen.getAllByText("This boost is currently unavailable.")).toHaveLength(3);
     empty.unmount();
 
     renderBoosts(standardFetch({

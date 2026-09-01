@@ -4,10 +4,13 @@ import {
   BoostApiError,
   getBoostOverview,
   sendArcaneTomeBoost,
+  sendCharacterLevelBoost,
   sendMoneyBoost,
   sendPortableHolesBoost,
   type MoneyBoostLimits,
+  type BoostOverview,
   type SendArcaneTomeInput,
+  type SendCharacterLevelInput,
   type SendMoneyInput,
   type SendPortableHolesInput
 } from "../api/boosts.js";
@@ -23,6 +26,11 @@ interface SubmissionMessage {
 interface PortableHolesConfirmation {
   characterId: string;
   characterName: string;
+}
+
+interface CharacterLevelConfirmation extends PortableHolesConfirmation {
+  currentLevel: number;
+  targetLevel: number;
 }
 
 function validateGold(value: string, limits: MoneyBoostLimits | undefined): string | undefined {
@@ -52,13 +60,18 @@ export function BoostsPage() {
   const [portableMessage, setPortableMessage] = useState<SubmissionMessage>();
   const [tomeConfirmation, setTomeConfirmation] = useState<PortableHolesConfirmation>();
   const [tomeMessage, setTomeMessage] = useState<SubmissionMessage>();
+  const [targetLevel, setTargetLevel] = useState(2);
+  const [levelConfirmation, setLevelConfirmation] = useState<CharacterLevelConfirmation>();
+  const [levelMessage, setLevelMessage] = useState<SubmissionMessage>();
   const moneySubmissionGuard = useRef(false);
   const portableSubmissionGuard = useRef(false);
   const tomeSubmissionGuard = useRef(false);
+  const levelSubmissionGuard = useRef(false);
   const goldInput = useRef<HTMLInputElement>(null);
   const sendBagsButton = useRef<HTMLButtonElement>(null);
   const confirmBagsButton = useRef<HTMLButtonElement>(null);
   const sendTomeButton = useRef<HTMLButtonElement>(null);
+  const raiseLevelButton = useRef<HTMLButtonElement>(null);
 
   const overviewQuery = useQuery({
     queryKey: ["protected", "boosts", username],
@@ -79,9 +92,13 @@ export function BoostsPage() {
     setPortableMessage(undefined);
     setTomeConfirmation(undefined);
     setTomeMessage(undefined);
+    setTargetLevel(2);
+    setLevelConfirmation(undefined);
+    setLevelMessage(undefined);
     moneySubmissionGuard.current = false;
     portableSubmissionGuard.current = false;
     tomeSubmissionGuard.current = false;
+    levelSubmissionGuard.current = false;
   }, [username]);
 
   useEffect(() => {
@@ -95,6 +112,16 @@ export function BoostsPage() {
         : characters[0]?.id ?? ""
     );
   }, [overviewQuery.data?.characters]);
+
+  const selectedCharacter = overviewQuery.data?.characters.find(
+    (character) => character.id === selectedCharacterId
+  );
+
+  useEffect(() => {
+    if (selectedCharacter) {
+      setTargetLevel(Math.min(selectedCharacter.level + 1, 80));
+    }
+  }, [selectedCharacter?.id, selectedCharacter?.level]);
 
   useEffect(() => {
     if (overviewQuery.error instanceof BoostApiError && overviewQuery.error.httpStatus === 401) {
@@ -189,9 +216,44 @@ export function BoostsPage() {
     }
   });
 
+  const levelMutation = useMutation({
+    mutationFn: sendCharacterLevelBoost,
+    retry: false,
+    onSuccess: (result) => {
+      levelSubmissionGuard.current = false;
+      setLevelConfirmation(undefined);
+      setLevelMessage({ tone: "success", text: result.message });
+      queryClient.setQueryData<BoostOverview>(["protected", "boosts", username], (current) => current ? {
+        ...current,
+        characters: current.characters.map((character) =>
+          character.id === result.character.id ? { ...character, level: result.character.level } : character
+        )
+      } : current);
+    },
+    onError: (error: Error, variables: SendCharacterLevelInput) => {
+      levelSubmissionGuard.current = false;
+      setLevelConfirmation(undefined);
+      if (error instanceof BoostApiError && error.httpStatus === 401) {
+        auth.setSignedOut();
+        return;
+      }
+      const ambiguous = error instanceof BoostApiError &&
+        (error.deliveryStatus === "unknown" || error.deliveryStatus === "pending");
+      setLevelMessage({
+        tone: "error",
+        text: error.message,
+        requestId: ambiguous ? error.requestId ?? variables.requestId : undefined
+      });
+      if (error instanceof BoostApiError && error.httpStatus === 409) {
+        void queryClient.invalidateQueries({ queryKey: ["protected", "boosts", username] });
+      }
+    }
+  });
+
   const limits = overviewQuery.data?.money;
   const portableHoles = overviewQuery.data?.portableHoles;
   const arcaneTome = overviewQuery.data?.arcaneTome;
+  const characterLevel = overviewQuery.data?.characterLevel;
   const validationMessage = validateGold(goldText, limits);
   const characters = overviewQuery.data?.characters ?? [];
   const moneyControlsDisabled = moneyMutation.isPending || unknownLocked;
@@ -209,12 +271,19 @@ export function BoostsPage() {
     !overviewQuery.isPending && !overviewQuery.isError && !tomeMutation.isPending &&
     !tomeConfirmation
   );
+  const canStartCharacterLevel = Boolean(
+    authenticatedSession && characterLevel?.enabled && selectedCharacter &&
+    selectedCharacter.level < characterLevel.maximumLevel && targetLevel > selectedCharacter.level &&
+    targetLevel <= characterLevel.maximumLevel && !overviewQuery.isPending && !overviewQuery.isError &&
+    !levelMutation.isPending && !levelConfirmation
+  );
 
   function changeCharacter(value: string): void {
     setSelectedCharacterId(value);
     setSubmissionMessage(undefined);
     setPortableConfirmation(undefined);
     setTomeConfirmation(undefined);
+    setLevelConfirmation(undefined);
   }
 
   function submitMoney(event: FormEvent<HTMLFormElement>): void {
@@ -282,6 +351,34 @@ export function BoostsPage() {
     });
   }
 
+  function startLevelConfirmation(): void {
+    if (!canStartCharacterLevel || !selectedCharacter) return;
+    setLevelMessage(undefined);
+    setLevelConfirmation({
+      characterId: selectedCharacter.id,
+      characterName: selectedCharacter.name,
+      currentLevel: selectedCharacter.level,
+      targetLevel
+    });
+  }
+
+  function cancelLevelConfirmation(): void {
+    setLevelConfirmation(undefined);
+    requestAnimationFrame(() => raiseLevelButton.current?.focus());
+  }
+
+  function confirmCharacterLevel(): void {
+    if (!levelConfirmation || !authenticatedSession || levelSubmissionGuard.current) return;
+    levelSubmissionGuard.current = true;
+    setLevelMessage(undefined);
+    levelMutation.mutate({
+      requestId: crypto.randomUUID(),
+      characterId: levelConfirmation.characterId,
+      targetLevel: levelConfirmation.targetLevel,
+      csrfToken: authenticatedSession.csrfToken
+    });
+  }
+
   return (
     <main>
       <DocumentTitle>Boosts | DaBoysZeroth</DocumentTitle>
@@ -294,7 +391,7 @@ export function BoostsPage() {
         <h2 id="boost-character-heading">Character</h2>
         <label htmlFor="boost-character">Choose a character</label>
         <select id="boost-character" value={selectedCharacterId}
-          disabled={overviewQuery.isPending || overviewQuery.isError || characters.length === 0 || moneyMutation.isPending || portableMutation.isPending || tomeMutation.isPending || unknownLocked}
+          disabled={overviewQuery.isPending || overviewQuery.isError || characters.length === 0 || moneyMutation.isPending || portableMutation.isPending || tomeMutation.isPending || levelMutation.isPending || unknownLocked}
           onChange={(event) => changeCharacter(event.target.value)}>
           <option value="">Select a character</option>
           {characters.map((character) => <option key={character.id} value={character.id}>
@@ -375,6 +472,51 @@ export function BoostsPage() {
           {tomeMessage && <div className={`message ${tomeMessage.tone}`} role="status" aria-live="polite">
             <p>{tomeMessage.text}</p>
             {tomeMessage.requestId && <p>Request ID: <code>{tomeMessage.requestId}</code></p>}
+          </div>}
+        </section>
+
+        <section className="panel boost-card" aria-labelledby="character-level-heading">
+          <h2 id="character-level-heading">Level Up, Buttercup</h2>
+          <p>Raise this character to any level up to 80, even while they are offline.</p>
+          {characterLevel && !characterLevel.enabled && <p className="message error" role="status">This boost is currently unavailable.</p>}
+          {selectedCharacter && <p>Current level: <strong>{selectedCharacter.level}</strong></p>}
+          {selectedCharacter && selectedCharacter.level >= 80
+            ? <p className="players-message">This character is already at the maximum level.</p>
+            : selectedCharacter && <>
+              <label htmlFor="boost-target-level">Target level</label>
+              <input
+                id="boost-target-level"
+                type="range"
+                min={selectedCharacter.level + 1}
+                max={characterLevel?.maximumLevel ?? 80}
+                step={1}
+                value={targetLevel}
+                disabled={!characterLevel?.enabled || levelMutation.isPending}
+                aria-describedby="boost-level-target-text boost-level-xp-warning"
+                onChange={(event) => {
+                  setTargetLevel(Number(event.target.value));
+                  setLevelConfirmation(undefined);
+                }}
+              />
+              <p id="boost-level-target-text">Target level: <strong>{targetLevel}</strong></p>
+              <p id="boost-level-xp-warning" className="field-help">Your current experience progress will reset when the level changes.</p>
+              {!levelConfirmation && <button ref={raiseLevelButton} type="button" disabled={!canStartCharacterLevel} onClick={startLevelConfirmation}>
+                {levelMutation.isPending ? "Raising level..." : "Raise level"}
+              </button>}
+            </>}
+          {levelConfirmation && <div className="boost-confirmation" role="group" aria-labelledby="character-level-confirmation-heading">
+            <h3 id="character-level-confirmation-heading">Confirm level boost</h3>
+            <p>Raise {levelConfirmation.characterName} from level {levelConfirmation.currentLevel} to level {levelConfirmation.targetLevel}? Current experience progress will reset.</p>
+            <div className="boost-confirmation-actions">
+              <button type="button" disabled={levelMutation.isPending} onClick={confirmCharacterLevel}>
+                {levelMutation.isPending ? "Raising level..." : "Confirm level boost"}
+              </button>
+              <button type="button" className="secondary" disabled={levelMutation.isPending} onClick={cancelLevelConfirmation}>Cancel</button>
+            </div>
+          </div>}
+          {levelMessage && <div className={`message ${levelMessage.tone}`} role="status" aria-live="polite">
+            <p>{levelMessage.text}</p>
+            {levelMessage.requestId && <p>Request ID: <code>{levelMessage.requestId}</code></p>}
           </div>}
         </section>
       </div>

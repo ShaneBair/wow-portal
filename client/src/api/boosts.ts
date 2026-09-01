@@ -33,11 +33,19 @@ export interface ArcaneTomeBoostMetadata {
   repeatable: true;
 }
 
+export interface CharacterLevelBoostMetadata {
+  enabled: boolean;
+  name: "Level Up, Buttercup";
+  maximumLevel: 80;
+  xpWillReset: true;
+}
+
 export interface BoostOverview {
   characters: BoostCharacter[];
   money: MoneyBoostLimits;
   portableHoles: PortableHolesBoostMetadata;
   arcaneTome: ArcaneTomeBoostMetadata;
+  characterLevel: CharacterLevelBoostMetadata;
 }
 
 export interface SendMoneyInput {
@@ -63,6 +71,20 @@ export type SendPortableHolesResult = SendMoneyResult;
 
 export type SendArcaneTomeInput = SendPortableHolesInput;
 export type SendArcaneTomeResult = SendMoneyResult;
+
+export interface SendCharacterLevelInput {
+  requestId: string;
+  characterId: string;
+  targetLevel: number;
+  csrfToken: string;
+}
+
+export interface SendCharacterLevelResult {
+  requestId: string;
+  status: "applied";
+  character: { id: string; name: string; level: number };
+  message: string;
+}
 
 export class BoostApiError extends PortalApiError {
   constructor(
@@ -127,7 +149,8 @@ function parseOverview(value: unknown): BoostOverview | undefined {
     !Array.isArray(value.characters) ||
     !isRecord(value.money) ||
     !isRecord(value.portableHoles) ||
-    !isRecord(value.arcaneTome)
+    !isRecord(value.arcaneTome) ||
+    !isRecord(value.characterLevel)
   ) {
     return undefined;
   }
@@ -135,6 +158,7 @@ function parseOverview(value: unknown): BoostOverview | undefined {
   const money = value.money;
   const portableHoles = value.portableHoles;
   const arcaneTome = value.arcaneTome;
+  const characterLevel = value.characterLevel;
   if (
     characters.some((character) => character === undefined) ||
     typeof money.enabled !== "boolean" ||
@@ -152,7 +176,11 @@ function parseOverview(value: unknown): BoostOverview | undefined {
     arcaneTome.name !== "Tomeward Bound" ||
     arcaneTome.itemName !== "Arcane Tome of Displacement" ||
     arcaneTome.itemCount !== 1 ||
-    arcaneTome.repeatable !== true
+    arcaneTome.repeatable !== true ||
+    typeof characterLevel.enabled !== "boolean" ||
+    characterLevel.name !== "Level Up, Buttercup" ||
+    characterLevel.maximumLevel !== 80 ||
+    characterLevel.xpWillReset !== true
   ) {
     return undefined;
   }
@@ -179,6 +207,12 @@ function parseOverview(value: unknown): BoostOverview | undefined {
       itemName: arcaneTome.itemName,
       itemCount: arcaneTome.itemCount,
       repeatable: arcaneTome.repeatable
+    },
+    characterLevel: {
+      enabled: characterLevel.enabled,
+      name: characterLevel.name,
+      maximumLevel: characterLevel.maximumLevel,
+      xpWillReset: characterLevel.xpWillReset
     }
   };
 }
@@ -354,4 +388,53 @@ export async function sendArcaneTomeBoost(
     throw new BoostApiError(unknownMessage, response.status, "unknown", input.requestId);
   }
   return { requestId: input.requestId, status: "sent", message: body.message };
+}
+
+export async function sendCharacterLevelBoost(
+  input: SendCharacterLevelInput
+): Promise<SendCharacterLevelResult> {
+  const unknownMessage =
+    "The level change could not be confirmed. Do not submit it again; give this request ID to an administrator.";
+  let response: Response;
+  try {
+    response = await fetch("/api/boosts/character-level", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": input.csrfToken },
+      credentials: "same-origin",
+      body: JSON.stringify({
+        requestId: input.requestId,
+        characterId: input.characterId,
+        targetLevel: input.targetLevel
+      })
+    });
+  } catch {
+    throw new BoostApiError(unknownMessage, 0, "unknown", input.requestId);
+  }
+  let body: unknown;
+  try { body = await response.json() as unknown; } catch {
+    throw new BoostApiError(unknownMessage, response.status, "unknown", input.requestId);
+  }
+  if (!response.ok) {
+    const status = isRecord(body) && (body.status === "pending" || body.status === "unknown")
+      ? body.status : undefined;
+    const requestId = isRecord(body) && typeof body.requestId === "string" ? body.requestId : undefined;
+    throw new BoostApiError(
+      readPublicError(body, "The character level could not be changed. Try again later."),
+      response.status,
+      status,
+      requestId
+    );
+  }
+  if (
+    !isRecord(body) || body.requestId !== input.requestId || body.status !== "applied" ||
+    !isRecord(body.character) || body.character.id !== input.characterId ||
+    typeof body.character.name !== "string" || body.character.name.length > 12 ||
+    body.character.level !== input.targetLevel || typeof body.message !== "string" || body.message.length > 256
+  ) throw new BoostApiError(unknownMessage, response.status, "unknown", input.requestId);
+  return {
+    requestId: input.requestId,
+    status: "applied",
+    character: { id: body.character.id, name: body.character.name, level: body.character.level },
+    message: body.message
+  };
 }

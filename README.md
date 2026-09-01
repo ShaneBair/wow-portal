@@ -199,6 +199,12 @@ least-privilege grants before deployment. Keep `BOOST_ARCANE_TOME_ENABLED=false`
 command output, offline delivery, replay and reconciliation behavior, and the unique-item
 duplicate-delivery policy have been explicitly verified and approved.
 
+Level Up, Buttercup raises an owned character to a validated absolute target through the private
+`character level` SOAP command. Apply `migrations/004_create_character_level_boost_requests.sql`
+and grant only `SELECT`, `INSERT`, and `UPDATE` on that table. Keep
+`BOOST_CHARACTER_LEVEL_ENABLED=false` until permission 283, online/offline behavior, XP reset,
+authoritative reconciliation, and the documented check-to-command race are verified and accepted.
+
 ## Verification
 
 Run strict server/client builds and mocked server/frontend tests without contacting the live

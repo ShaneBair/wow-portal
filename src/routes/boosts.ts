@@ -31,22 +31,31 @@ import {
   type ArcaneTomeSuccess
 } from "../services/arcane-tome-boost.js";
 import type { ArcaneTomeBoostConfig } from "../services/boost-config.js";
+import {
+  parseCharacterLevelInput,
+  type CharacterLevelInput,
+  type CharacterLevelSuccess
+} from "../services/character-level-boost.js";
+import type { CharacterLevelBoostConfig } from "../services/boost-config.js";
 import type { PortalSessionStore } from "../services/portal-sessions.js";
 
 const UNAVAILABLE_MESSAGE = "Boosts are temporarily unavailable.";
 const INVALID_REQUEST_MESSAGE = "Enter a valid character, request ID, and whole-gold amount.";
 const INVALID_PORTABLE_HOLES_REQUEST_MESSAGE = "Enter a valid character and request ID.";
 const RATE_LIMIT_MESSAGE = "Too many boost submissions. Try again later.";
+const INVALID_CHARACTER_LEVEL_REQUEST_MESSAGE = "Enter a valid character, request ID, and target level.";
 
 export interface BoostsRouterDependencies {
   service?: {
     readMoneyConfig(): MoneyBoostConfig;
     readPortableHolesConfig(): PortableHolesBoostConfig;
     readArcaneTomeConfig(): ArcaneTomeBoostConfig;
+    readCharacterLevelConfig(): CharacterLevelBoostConfig;
     getOverview(accountId: number): Promise<BoostsOverview>;
     requestMoney(accountId: number, input: MoneyBoostInput): Promise<MoneyBoostSuccess>;
     requestPortableHoles(accountId: number, input: PortableHolesInput): Promise<PortableHolesSuccess>;
     requestArcaneTome(accountId: number, input: ArcaneTomeInput): Promise<ArcaneTomeSuccess>;
+    requestCharacterLevel(accountId: number, input: CharacterLevelInput): Promise<CharacterLevelSuccess>;
   };
   limiter?: BoostMutationLimiter;
   sessions?: PortalSessionStore;
@@ -223,6 +232,44 @@ export function createBoostsRouter(dependencies: BoostsRouterDependencies = {}):
       }
       const errorKind = error instanceof Error ? error.name : "UnknownError";
       console.error(`Arcane Tome boost dependency failed (${errorKind}).`);
+      return response.status(503).json({ error: UNAVAILABLE_MESSAGE });
+    }
+  });
+
+  router.post("/api/boosts/character-level", requireMutation, async (request, response) => {
+    if (!request.is("application/json")) {
+      return response.status(400).json({ error: INVALID_CHARACTER_LEVEL_REQUEST_MESSAGE });
+    }
+    let config;
+    try {
+      config = service.readCharacterLevelConfig();
+    } catch (error) {
+      const errorKind = error instanceof Error ? error.name : "UnknownError";
+      console.error(`Character level boost configuration failed (${errorKind}).`);
+      return response.status(503).json({ error: UNAVAILABLE_MESSAGE });
+    }
+    const input = parseCharacterLevelInput(request.body);
+    if (!input) {
+      return response.status(400).json({ error: INVALID_CHARACTER_LEVEL_REQUEST_MESSAGE });
+    }
+    if (!config.enabled) {
+      return response.status(503).json({ error: "This boost is currently unavailable." });
+    }
+    if (!limiter.consume(request.ip ?? "unknown")) {
+      return response.status(429).json({ error: RATE_LIMIT_MESSAGE });
+    }
+    const locals = response.locals as PortalAuthLocals;
+    try {
+      const result = await service.requestCharacterLevel(locals.authenticatedPrincipal.accountId, input);
+      const { created, ...body } = result;
+      return response.status(created ? 201 : 200).json(body);
+    } catch (error) {
+      if (error instanceof BoostRequestError) {
+        const failure = publicRequestFailure(error, "The character level could not be changed. Try again later.");
+        return response.status(failure.status).json(failure.body);
+      }
+      const errorKind = error instanceof Error ? error.name : "UnknownError";
+      console.error(`Character level boost dependency failed (${errorKind}).`);
       return response.status(503).json({ error: UNAVAILABLE_MESSAGE });
     }
   });
