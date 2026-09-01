@@ -8,6 +8,7 @@ import registerRouter from "./routes/register.js";
 import statsDeathsRouter from "./routes/stats-deaths.js";
 import statsBossKillsRouter from "./routes/stats-boss-kills.js";
 import statsQuestCompletionsRouter from "./routes/stats-quest-completions.js";
+import rosterRouter from "./routes/roster.js";
 import statusRouter from "./routes/status.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -53,6 +54,7 @@ export function createApp(options: CreateAppOptions = {}): Express {
   app.use(registerRouter);
   app.use(statusRouter);
   app.use(onlinePlayersRouter);
+  app.use(rosterRouter);
   app.use(statsDeathsRouter);
   app.use(statsBossKillsRouter);
   app.use(statsQuestCompletionsRouter);
@@ -63,7 +65,7 @@ export function createApp(options: CreateAppOptions = {}): Express {
 
   app.use(express.static(clientOutputDir, { index: false }));
 
-  app.get(["/", "/stats", "/login", "/boosts"], (_req, res, next) => {
+  app.get(["/", "/stats", "/login", "/boosts", "/roster"], (_req, res, next) => {
     res.sendFile(path.join(clientOutputDir, "index.html"), (error) => {
       if (error) {
         next(error);

@@ -205,6 +205,18 @@ and grant only `SELECT`, `INSERT`, and `UPDATE` on that table. Keep
 `BOOST_CHARACTER_LEVEL_ENABLED=false` until permission 283, online/offline behavior, XP reset,
 authoritative reconciliation, and the documented check-to-command race are verified and accepted.
 
+## Authenticated account roster
+
+The protected `/roster` page groups active characters under visible human game accounts and
+excludes every account represented in the Playerbots `playerbots_account_type` table. Configure
+`PORTAL_PLAYERBOTS_DATABASE` with that schema name. The portal database user additionally needs
+only column-level `SELECT` access to `characters.totaltime` and
+`playerbots_account_type.account_id`; do not grant AzerothCore or Playerbots write access.
+
+Keep the roster unavailable until the standard/full visibility scopes, authoritative bot
+classification, query bounds, and deployed `EXPLAIN` plan have been verified with the portal
+database user. The public online-player panel remains separate and unchanged.
+
 ## Verification
 
 Run strict server/client builds and mocked server/frontend tests without contacting the live

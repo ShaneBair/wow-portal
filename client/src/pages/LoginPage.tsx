@@ -6,8 +6,8 @@ import { PortalApiError } from "../api/portal.js";
 import { useAuth } from "../auth/auth-context.js";
 import { DocumentTitle } from "../components/DocumentTitle.js";
 
-function safeReturnPath(value: string | null): "/" | "/boosts" {
-  return value === "/boosts" ? "/boosts" : "/";
+function safeReturnPath(value: string | null): "/" | "/boosts" | "/roster" {
+  return value === "/boosts" || value === "/roster" ? value : "/";
 }
 
 export function LoginPage() {

@@ -18,6 +18,7 @@ export function AppShell() {
         <nav className="primary-navigation" aria-label="Primary">
           <NavLink to="/" end>Home</NavLink>
           <NavLink to="/stats" end>Stats</NavLink>
+          {authenticatedSession && <NavLink to="/roster" end>Roster</NavLink>}
           <NavLink to="/boosts" end>Boosts</NavLink>
         </nav>
         <div className="auth-actions" aria-label="Portal account">

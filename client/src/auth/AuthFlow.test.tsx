@@ -81,12 +81,22 @@ describe("portal authentication experience", () => {
     );
 
     expect(screen.getByText("Checking your portal session...")).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Roster" })).toBeNull();
     expect(screen.queryByRole("heading", { level: 1, name: "Boosts" })).toBeNull();
     resolveSession(jsonResponse({ authenticated: false }));
 
     expect(await screen.findByRole("heading", { level: 1, name: "Log in" })).toBeTruthy();
     expect(router.state.location.pathname).toBe("/login");
     expect(router.state.location.search).toBe("?returnTo=%2Fboosts");
+    expect(screen.queryByRole("link", { name: "Roster" })).toBeNull();
+  });
+
+  it("does not expose Roster navigation when session resolution fails", async () => {
+    renderApp("/roster", (input) => pathOf(input) === "/api/auth/session"
+      ? Promise.resolve(jsonResponse({ error: "unavailable" }, 503))
+      : publicFallback(input));
+    expect(await screen.findByText("Portal session is temporarily unavailable.")).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Roster" })).toBeNull();
   });
 
   it("shows a generic login error, retains the account name, and clears the password", async () => {
@@ -143,6 +153,26 @@ describe("portal authentication experience", () => {
     });
   });
 
+  it("safely returns a direct roster visit after login", async () => {
+    const { router } = renderApp("/roster", (input) => {
+      const path = pathOf(input);
+      if (path === "/api/auth/session") return Promise.resolve(jsonResponse({ authenticated: false }));
+      if (path === "/api/auth/login") return Promise.resolve(jsonResponse(authenticatedSession));
+      if (path === "/api/roster") return Promise.resolve(jsonResponse({
+        generatedAt: "2026-08-28T16:00:00.000Z", accountCount: 0, characterCount: 0, accounts: []
+      }));
+      return publicFallback(input);
+    });
+    expect(await screen.findByRole("heading", { level: 1, name: "Log in" })).toBeTruthy();
+    expect(router.state.location.search).toBe("?returnTo=%2Froster");
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Account name"), "test_user");
+    await user.type(screen.getByLabelText("Password"), "fabricated-password");
+    await user.click(screen.getByRole("button", { name: "Log in" }));
+    expect(await screen.findByRole("heading", { level: 1, name: "Roster" })).toBeTruthy();
+    expect(router.state.location.pathname).toBe("/roster");
+  });
+
   it("rejects an external return target", async () => {
     const { router } = renderApp("/login?returnTo=https://evil.example", (input) => {
       const path = pathOf(input);
@@ -178,6 +208,7 @@ describe("portal authentication experience", () => {
     const user = userEvent.setup();
 
     expect(await screen.findByRole("heading", { level: 1, name: "Boosts" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Roster" })).toBeTruthy();
     queryClient.setQueryData(["protected", "characters"], { private: true });
     queryClient.setQueryData(["account-visible", "stats", "deaths", "players"], {
       entries: ["privileged"]
@@ -185,6 +216,7 @@ describe("portal authentication experience", () => {
     await user.click(screen.getByRole("button", { name: "Log out" }));
     expect(await screen.findByRole("heading", { level: 1, name: "Log in" })).toBeTruthy();
     expect(router.state.location.pathname).toBe("/login");
+    expect(screen.queryByRole("link", { name: "Roster" })).toBeNull();
     const logoutCall = fetchMock.mock.calls.find(([input]) => pathOf(input) === "/api/auth/logout");
     expect(new Headers(logoutCall?.[1]?.headers).get("X-CSRF-Token")).toBe(csrfToken);
     expect(queryClient.getQueryData(["protected", "characters"])).toBeUndefined();

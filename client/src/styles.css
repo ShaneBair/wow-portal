@@ -365,6 +365,26 @@ code {
   margin-bottom: 20px;
 }
 
+.roster-summary {
+  margin: 0 0 20px;
+  color: #bec6d2;
+  font-weight: 700;
+}
+
+.account-roster-grid {
+  display: grid;
+  gap: 20px;
+}
+
+.account-roster-card h2 {
+  margin-bottom: 0;
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+}
+
+.account-character-table {
+  table-layout: fixed;
+}
+
 .boost-character-panel h2,
 .boost-card h2 {
   margin-bottom: 8px;

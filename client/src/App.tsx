@@ -7,6 +7,7 @@ import { HomePage } from "./pages/HomePage.js";
 import { LoginPage } from "./pages/LoginPage.js";
 import { NotFoundPage } from "./pages/NotFoundPage.js";
 import { StatsPage } from "./pages/StatsPage.js";
+import { RosterPage } from "./pages/RosterPage.js";
 
 export function App() {
   return (
@@ -19,6 +20,11 @@ export function App() {
           <Route path="/boosts" element={(
             <ProtectedRoute returnTo="/boosts">
               <BoostsPage />
+            </ProtectedRoute>
+          )} />
+          <Route path="/roster" element={(
+            <ProtectedRoute returnTo="/roster">
+              <RosterPage />
             </ProtectedRoute>
           )} />
           <Route path="*" element={<NotFoundPage />} />
