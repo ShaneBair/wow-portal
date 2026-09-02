@@ -124,6 +124,14 @@ export class PortalSessionStore {
     }
   }
 
+  invalidateAccount(accountId: number): void {
+    for (const [key, record] of this.sessions) {
+      if (record.accountId === accountId) {
+        this.sessions.delete(key);
+      }
+    }
+  }
+
   size(): number {
     return this.sessions.size;
   }

@@ -29,6 +29,7 @@ export function AppShell() {
           {!auth.isLoading && authenticatedSession && (
             <>
               <span className="auth-account-name">{authenticatedSession.account.username}</span>
+              <NavLink to="/settings">Settings</NavLink>
               <button
                 type="button"
                 className="auth-logout"

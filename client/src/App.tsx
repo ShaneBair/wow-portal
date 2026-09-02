@@ -8,6 +8,7 @@ import { LoginPage } from "./pages/LoginPage.js";
 import { NotFoundPage } from "./pages/NotFoundPage.js";
 import { StatsPage } from "./pages/StatsPage.js";
 import { RosterPage } from "./pages/RosterPage.js";
+import { SettingsPage } from "./pages/SettingsPage.js";
 
 export function App() {
   return (
@@ -25,6 +26,11 @@ export function App() {
           <Route path="/roster" element={(
             <ProtectedRoute returnTo="/roster">
               <RosterPage />
+            </ProtectedRoute>
+          )} />
+          <Route path="/settings" element={(
+            <ProtectedRoute returnTo="/settings">
+              <SettingsPage />
             </ProtectedRoute>
           )} />
           <Route path="*" element={<NotFoundPage />} />

@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import onlinePlayersRouter from "./routes/online-players.js";
 import authRouter from "./routes/auth.js";
+import accountRouter from "./routes/account.js";
 import boostsRouter from "./routes/boosts.js";
 import registerRouter from "./routes/register.js";
 import statsDeathsRouter from "./routes/stats-deaths.js";
@@ -40,7 +41,7 @@ export function createApp(options: CreateAppOptions = {}): Express {
       request.path.startsWith("/api/") &&
       (type === "entity.parse.failed" || type === "entity.too.large")
     ) {
-      if (request.path.startsWith("/api/boosts")) {
+      if (request.path.startsWith("/api/boosts") || request.path.startsWith("/api/account")) {
         response.set("Cache-Control", "no-store");
       }
       return response.status(400).json({ error: "Request body must be valid JSON." });
@@ -50,6 +51,7 @@ export function createApp(options: CreateAppOptions = {}): Express {
   app.use(rejectInvalidBody);
 
   app.use(authRouter);
+  app.use(accountRouter);
   app.use(boostsRouter);
   app.use(registerRouter);
   app.use(statusRouter);
@@ -65,7 +67,10 @@ export function createApp(options: CreateAppOptions = {}): Express {
 
   app.use(express.static(clientOutputDir, { index: false }));
 
-  app.get(["/", "/stats", "/login", "/boosts", "/roster"], (_req, res, next) => {
+  app.get(["/", "/stats", "/login", "/boosts", "/roster", "/settings"], (_req, res, next) => {
+    if (_req.path === "/settings") {
+      res.set("Cache-Control", "no-store");
+    }
     res.sendFile(path.join(clientOutputDir, "index.html"), (error) => {
       if (error) {
         next(error);

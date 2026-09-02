@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { createContext, useContext, useEffect, useRef, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   getPortalSession,
   type AuthenticatedSession,
@@ -14,12 +14,17 @@ interface AuthContextValue {
   isError: boolean;
   setAuthenticated(session: AuthenticatedSession): void;
   setSignedOut(): void;
+  loginNotice: string | undefined;
+  completePasswordChange(): void;
+  requireLogin(message: string): void;
+  clearLoginNotice(): void;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
+  const [loginNotice, setLoginNotice] = useState<string | undefined>();
   const sessionQuery = useQuery({
     queryKey: authSessionQueryKey,
     queryFn: ({ signal }) => getPortalSession(signal),
@@ -67,13 +72,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearIdentityScopedQueries();
   }
 
+  function completePasswordChange(): void {
+    setLoginNotice("Password changed. Log in with your new password.");
+    setSignedOut();
+  }
+
   return (
     <AuthContext.Provider value={{
       session: sessionQuery.data,
       isLoading: sessionQuery.isPending,
       isError: sessionQuery.isError,
       setAuthenticated,
-      setSignedOut
+      setSignedOut,
+      loginNotice,
+      completePasswordChange,
+      requireLogin: (message) => {
+        setLoginNotice(message);
+        setSignedOut();
+      },
+      clearLoginNotice: () => setLoginNotice(undefined)
     }}>
       {children}
     </AuthContext.Provider>

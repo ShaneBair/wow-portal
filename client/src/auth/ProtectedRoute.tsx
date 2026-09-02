@@ -3,7 +3,7 @@ import { useAuth } from "./auth-context.js";
 
 export function ProtectedRoute({ children, returnTo }: {
   children: React.ReactNode;
-  returnTo: "/boosts" | "/roster";
+  returnTo: "/boosts" | "/roster" | "/settings";
 }) {
   const auth = useAuth();
   if (auth.isLoading) {
@@ -21,6 +21,9 @@ export function ProtectedRoute({ children, returnTo }: {
     );
   }
   if (!auth.session?.authenticated) {
+    if (auth.loginNotice) {
+      return <Navigate to="/login" replace />;
+    }
     return <Navigate to={`/login?returnTo=${encodeURIComponent(returnTo)}`} replace />;
   }
   return children;

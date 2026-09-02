@@ -1,13 +1,13 @@
 import { useMutation } from "@tanstack/react-query";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router";
 import { loginToPortal } from "../api/auth.js";
 import { PortalApiError } from "../api/portal.js";
 import { useAuth } from "../auth/auth-context.js";
 import { DocumentTitle } from "../components/DocumentTitle.js";
 
-function safeReturnPath(value: string | null): "/" | "/boosts" | "/roster" {
-  return value === "/boosts" || value === "/roster" ? value : "/";
+function safeReturnPath(value: string | null): "/" | "/boosts" | "/roster" | "/settings" {
+  return value === "/boosts" || value === "/roster" || value === "/settings" ? value : "/";
 }
 
 export function LoginPage() {
@@ -17,6 +17,10 @@ export function LoginPage() {
   const returnTo = safeReturnPath(searchParams.get("returnTo"));
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [successMessage] = useState(() => auth.loginNotice ?? "");
+  useEffect(() => {
+    if (auth.loginNotice) auth.clearLoginNotice();
+  }, []);
   const login = useMutation({
     mutationFn: loginToPortal,
     retry: false,
@@ -60,6 +64,7 @@ export function LoginPage() {
 
       <section className="panel login-panel" aria-labelledby="loginHeading">
         <h2 id="loginHeading">Game account</h2>
+        {successMessage && <p className="message success" role="status">{successMessage}</p>}
         <form onSubmit={handleSubmit}>
           <label>Account name
             <input

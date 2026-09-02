@@ -19,8 +19,10 @@ Grant the application account only:
 - column-level `SELECT` for `guid`, `itemEntry`, and `count` on the AzerothCore `item_instance`
   table.
 
-Keep its existing column-level authentication reads. Do not grant writes on any AzerothCore
-auth, characters, mail, item, world, or statistics table.
+Keep its existing column-level authentication reads. The account-settings feature is the sole auth
+write exception: grant column-level `UPDATE` for only `account.salt` and `account.verifier` as
+documented in the repository README and its feature specification. Do not grant any other writes on
+AzerothCore auth, characters, mail, item, world, or statistics tables.
 
 ## Bounded retention
 

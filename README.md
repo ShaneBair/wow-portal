@@ -19,6 +19,7 @@ Node.js 22.22.2 or newer is required by the locked frontend toolchain.
 - Server MVP award for recorded direct and pet-owner boss killing blows
 - Universal account visibility exclusions across online players and leaderboards
 - Game-account login with bounded portal sessions and protected-route support
+- Authenticated account settings with AzerothCore-compatible password changes
 - Authenticated character boosts with durable, idempotent Free Money requests
 - Connection instructions
 - Registration rate limiting
@@ -132,9 +133,10 @@ absolutely after eight hours, and are invalidated by a portal restart.
 Configure the `PORTAL_DB_*` schema settings and `PORTAL_PUBLIC_ORIGIN` from `.env.example`.
 The database user needs column-level `SELECT` access for `account.id`, `account.username`,
 `account.salt`, `account.verifier`, and `account.totp_secret`, plus the account-ban columns needed
-to determine whether an active ban exists. It must not have write access to AzerothCore schemas.
-The characters and portal-state schema settings establish the shared integration boundary for
-future authenticated features; authentication does not mutate either schema.
+to determine whether an active ban exists. Account password changes additionally require
+column-level `UPDATE` access for only `account.salt` and `account.verifier`; do not grant broader
+write access to the auth schema or any write access to the characters schema. The characters and
+portal-state schema settings establish the shared integration boundary for authenticated features.
 
 `PORTAL_PUBLIC_ORIGIN` must exactly match the browser's origin. Production requires HTTPS and
 uses a `Secure`, HTTP-only, host-only cookie. Local Vite development may use
@@ -146,6 +148,22 @@ Before enabling login, verify the fabricated SRP6 test vector against the exact 
 AzerothCore/Playerbots revision, then test with a dedicated non-privileged account. Accounts with
 an active account ban or configured TOTP fail closed. Existing Home, registration, status, roster,
 and Stats behavior remains public.
+
+The protected `/settings` page lets the signed-in account change its own game password. The portal
+verifies the current password, generates fresh AzerothCore-compatible SRP6 salt/verifier material,
+and performs a parameterized compare-and-swap update by the trusted session account ID. A confirmed
+change invalidates every portal session for that account and requires a new login. No migration or
+new environment setting is required. Apply only this additional production grant, substituting the
+deployed auth schema, portal user, and Docker-network host scope:
+
+```sql
+GRANT UPDATE (`salt`, `verifier`)
+ON `AUTH_DATABASE`.`account`
+TO 'portal-user'@'portal-host';
+```
+
+Never grant whole-table `UPDATE`. Before normal use, verify the grant with the deployed portal user
+and perform old/new portal and game-login checks using a disposable account.
 
 ## Account visibility exclusions
 
