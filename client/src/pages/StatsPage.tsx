@@ -6,6 +6,8 @@ import { ServerMvpPanel } from "../components/ServerMvpPanel.js";
 import { StatsPopulationFilter } from "../components/StatsPopulationFilter.js";
 import { StatsPopulationProvider } from "../stats/stats-population.js";
 import { ServerStatus } from "../components/ServerStatus.js";
+import { BadNeighborhoodPanel } from "../components/BadNeighborhoodPanel.js";
+import { RealRaidBossPanel } from "../components/RealRaidBossPanel.js";
 
 export function StatsPage({ children }: { children?: ReactNode }) {
   return (
@@ -33,6 +35,12 @@ export function StatsPage({ children }: { children?: ReactNode }) {
             </section>
             <section className="stats-content" aria-label="Statistics content">
               <DeathLeaderboardPanel />
+            </section>
+            <section className="stats-content" aria-label="Statistics content">
+              <BadNeighborhoodPanel />
+            </section>
+            <section className="stats-content" aria-label="Statistics content">
+              <RealRaidBossPanel />
             </section>
           </>
         )}

@@ -50,6 +50,21 @@ const emptyBossKills = {
   entries: []
 };
 
+const emptyBadNeighborhood = {
+  generatedAt: "2026-08-24T16:00:00.000Z",
+  population: "players",
+  coverage: { comprehensiveSince: "2026-08-25T14:30:00.000Z" },
+  omittedUnknownZoneDeaths: 0,
+  entries: []
+};
+
+const emptyRealRaidBoss = {
+  generatedAt: "2026-08-24T16:00:00.000Z",
+  population: "players",
+  coverage: { firstRecordedAt: null },
+  entries: []
+};
+
 const anonymousSession = { authenticated: false };
 
 type FetchMock = ReturnType<typeof vi.fn<typeof fetch>>;
@@ -119,6 +134,14 @@ function installFetchMock(options: {
 
     if (path.startsWith("/api/stats/boss-kills?")) {
       return Promise.resolve(jsonResponse(emptyBossKills));
+    }
+
+    if (path.startsWith("/api/stats/bad-neighborhood?")) {
+      return Promise.resolve(jsonResponse(emptyBadNeighborhood));
+    }
+
+    if (path.startsWith("/api/stats/real-raid-boss?")) {
+      return Promise.resolve(jsonResponse(emptyRealRaidBoss));
     }
 
     if (path === "/api/auth/session") {
@@ -217,7 +240,7 @@ describe("application routes", () => {
     expectCurrentNavigationLink("Stats");
     await waitFor(() => expect(document.title).toBe("Stats | DaBoysZeroth"));
     await screen.findByText("No recorded deaths for this population yet.");
-    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(fetchMock).toHaveBeenCalledTimes(7);
   });
 
   it("keeps Stats current when query parameters are present", async () => {
@@ -226,7 +249,7 @@ describe("application routes", () => {
 
     expectCurrentNavigationLink("Stats");
     await screen.findByText("No recorded deaths for this population yet.");
-    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(fetchMock).toHaveBeenCalledTimes(7);
   });
 
   it("navigates through links and browser history with matching titles and active states", async () => {
@@ -242,7 +265,7 @@ describe("application routes", () => {
     expectCurrentNavigationLink("Stats");
     await waitFor(() => expect(document.title).toBe("Stats | DaBoysZeroth"));
     await screen.findByText("No recorded deaths for this population yet.");
-    expect(fetchMock).toHaveBeenCalledTimes(homeRequestCount + 4);
+    expect(fetchMock).toHaveBeenCalledTimes(homeRequestCount + 6);
 
     await act(async () => {
       await router.navigate(-1);

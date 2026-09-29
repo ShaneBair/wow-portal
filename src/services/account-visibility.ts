@@ -223,7 +223,7 @@ export function scopeForPrincipal(
 
 export function buildAccountExclusionClause(
   scope: AccountVisibilityScope,
-  column: "c.account" | "a.id",
+  column: "c.account" | "a.id" | "e.actor_account_id",
   indentation = "    "
 ): { clause: string; values: readonly number[] } {
   const accountIds = immutableIds(scope.excludedAccountIds);

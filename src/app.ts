@@ -9,6 +9,8 @@ import registerRouter from "./routes/register.js";
 import statsDeathsRouter from "./routes/stats-deaths.js";
 import statsBossKillsRouter from "./routes/stats-boss-kills.js";
 import statsQuestCompletionsRouter from "./routes/stats-quest-completions.js";
+import statsBadNeighborhoodRouter from "./routes/stats-bad-neighborhood.js";
+import statsRealRaidBossRouter from "./routes/stats-real-raid-boss.js";
 import rosterRouter from "./routes/roster.js";
 import statusRouter from "./routes/status.js";
 
@@ -60,6 +62,8 @@ export function createApp(options: CreateAppOptions = {}): Express {
   app.use(statsDeathsRouter);
   app.use(statsBossKillsRouter);
   app.use(statsQuestCompletionsRouter);
+  app.use(statsBadNeighborhoodRouter);
+  app.use(statsRealRaidBossRouter);
 
   app.get("/health", (_req, res) => {
     res.json({ ok: true });

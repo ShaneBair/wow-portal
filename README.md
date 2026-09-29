@@ -105,6 +105,21 @@ Its dedicated database user needs `SELECT` on those four tables only. The canoni
 provider migration must be deployed and verified before deploying this portal version; invalid
 or missing cutover metadata causes `GET /api/stats/deaths` to fail closed with `503`.
 
+Bad Neighborhood reads the same canonical death cutover and post-cutover event stream without a
+character or world-table join. Its source-controlled zone names come from AzerothCore's WotLK
+3.3.5a `AreaTable` catalog at revision `ba2b61857517b11864ca8a847c87d8a99785fbb2`.
+The statistics reader must be able to select `realm_id`, `actor_account_id`, `actor_guid`,
+`actor_is_bot`, `zone_id`, and the canonical contract fields from `mod_player_stats_events`.
+Before deployment, run both population queries with `EXPLAIN`, then verify one controlled death
+increments exactly one in-game zone total. No world database table or migration is required.
+
+The Real Raid Boss endpoint counts valid `PLAYER_KILLED_BY_CREATURE` details by creature entry and
+left-joins `STATS_WORLD_DATABASE.creature_template` for the current NPC name. The statistics reader
+therefore also needs `SELECT` on `creature_template.entry` and `creature_template.name`. Missing
+templates retain their historical totals under an `Unknown creature #<entry>` label. Before
+deployment, run the query with `EXPLAIN` and confirm one controlled creature death increments one
+row under both the standard and privileged visibility scopes.
+
 The Completionist award reuses that read-only connection and counts `QUEST_COMPLETE` event rows,
 with separate Player/Bot groups and independent population caches. Ensure the event-table grant
 includes column-level `SELECT` for `event_time`, `event_type`, `actor_guid`, `actor_is_bot`,

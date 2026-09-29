@@ -638,7 +638,9 @@ code {
 
 .deaths-table,
 .completionist-table,
-.boss-kill-table {
+.boss-kill-table,
+.bad-neighborhood-table,
+.real-raid-boss-table {
   width: 100%;
   border-collapse: collapse;
   font-size: .9rem;
@@ -654,6 +656,58 @@ code {
   border-bottom: 1px solid #29313d;
   text-align: left;
   vertical-align: middle;
+}
+
+.bad-neighborhood-table th,
+.bad-neighborhood-table td {
+  padding: 13px 10px;
+  border-bottom: 1px solid #29313d;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.bad-neighborhood-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.real-raid-boss-table th,
+.real-raid-boss-table td {
+  padding: 13px 10px;
+  border-bottom: 1px solid #29313d;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.real-raid-boss-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.creature-name {
+  font-weight: 700;
+}
+
+.raid-boss-rank {
+  width: 4rem;
+  color: #f1e5bd;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.zone-name {
+  font-weight: 700;
+}
+
+.zone-omissions {
+  margin: 14px 0 0;
+  color: #9da8b7;
+  font-size: .88rem;
+}
+
+.stats-retry {
+  width: auto;
+  min-height: 44px;
+  margin-top: 10px;
+  padding: 10px 18px;
 }
 
 .deaths-table th,
@@ -775,14 +829,20 @@ code {
   .deaths-table,
   .completionist-table,
   .boss-kill-table,
+  .bad-neighborhood-table,
+  .real-raid-boss-table,
   .roster-table tbody,
   .deaths-table tbody,
   .completionist-table tbody,
   .boss-kill-table tbody,
+  .bad-neighborhood-table tbody,
+  .real-raid-boss-table tbody,
   .roster-table tr,
   .deaths-table tr,
   .completionist-table tr,
   .boss-kill-table tr,
+  .bad-neighborhood-table tr,
+  .real-raid-boss-table tr,
   .roster-table td {
     display: block;
     width: 100%;
@@ -795,10 +855,36 @@ code {
     width: 100%;
   }
 
+  .bad-neighborhood-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .real-raid-boss-table td {
+    display: block;
+    width: 100%;
+  }
+
   .roster-table thead,
   .deaths-table thead,
   .completionist-table thead,
   .boss-kill-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+  }
+
+  .bad-neighborhood-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+  }
+
+  .real-raid-boss-table thead {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -817,10 +903,34 @@ code {
     background: #0c1118;
   }
 
+  .bad-neighborhood-table tr {
+    margin-bottom: 14px;
+    border: 1px solid #29313d;
+    border-radius: 12px;
+    padding: 7px 12px;
+    background: #0c1118;
+  }
+
+  .real-raid-boss-table tr {
+    margin-bottom: 14px;
+    border: 1px solid #29313d;
+    border-radius: 12px;
+    padding: 7px 12px;
+    background: #0c1118;
+  }
+
   .roster-table tr:last-child,
   .deaths-table tr:last-child,
   .completionist-table tr:last-child,
   .boss-kill-table tr:last-child {
+    margin-bottom: 0;
+  }
+
+  .bad-neighborhood-table tr:last-child {
+    margin-bottom: 0;
+  }
+
+  .real-raid-boss-table tr:last-child {
     margin-bottom: 0;
   }
 
@@ -835,10 +945,47 @@ code {
     overflow-wrap: anywhere;
   }
 
+  .bad-neighborhood-table td {
+    display: grid;
+    grid-template-columns: minmax(6.5rem, .7fr) minmax(0, 1.3fr);
+    gap: 12px;
+    padding: 8px 0;
+    overflow-wrap: anywhere;
+  }
+
+  .real-raid-boss-table td {
+    display: grid;
+    width: 100%;
+    grid-template-columns: minmax(6.5rem, .7fr) minmax(0, 1.3fr);
+    gap: 12px;
+    padding: 8px 0;
+    overflow-wrap: anywhere;
+  }
+
   .roster-table td::before,
   .deaths-table td::before,
   .completionist-table td::before,
   .boss-kill-table td::before {
+    content: attr(data-label);
+    color: #8f9baa;
+    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+
+  .bad-neighborhood-table td::before {
+    content: attr(data-label);
+    color: #8f9baa;
+    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+
+  .real-raid-boss-table td::before {
     content: attr(data-label);
     color: #8f9baa;
     font-family: Inter, ui-sans-serif, system-ui, sans-serif;
