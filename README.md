@@ -184,6 +184,18 @@ Do not grant progress-table writes. Before enabling the card, run its bound quer
 confirm it remains below eight seconds, sell a known-price item, and verify the exact copper delta
 under both standard and privileged visibility scopes.
 
+Loose Change Legend reads AzerothCore's lifetime `Gold looted` counter from
+`character_achievement_progress`. The deployed `Achievement_Criteria.dbc` maps criterion `3354` to
+type 67 and achievement `333` (`Gold looted`); criterion `4093` belongs to `Total gold acquired` and
+must not be substituted or combined. For this verified deployment, set the ignored `.env` value
+`STATS_LOOT_MONEY_CRITERIA_ID=3354`. The setting is mandatory and has no code default. Exact copper
+remains a base-10 string through the API.
+
+The existing column-scoped progress-table grant shown above is sufficient. Do not grant progress-
+table writes. Before enabling the card, run its bound query with `EXPLAIN`, confirm it remains below
+eight seconds, loot a known coin amount, and verify the exact counter delta under both standard and
+privileged visibility scopes.
+
 The Completionist award reuses that read-only connection and counts `QUEST_COMPLETE` event rows,
 with separate Player/Bot groups and independent population caches. Ensure the event-table grant
 includes column-level `SELECT` for `event_time`, `event_type`, `actor_guid`, `actor_is_bot`,

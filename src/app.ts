@@ -15,6 +15,10 @@ import statsTouchingGrassRouter from "./routes/stats-touching-grass.js";
 import statsPublicEnemyRouter from "./routes/stats-public-enemy.js";
 import statsBotWranglerRouter from "./routes/stats-bot-wrangler.js";
 import statsVendorTrashMagnateRouter from "./routes/stats-vendor-trash-magnate.js";
+import statsGottaKillEmAllRouter from "./routes/stats-gotta-kill-em-all.js";
+import statsLooseChangeLegendRouter from "./routes/stats-loose-change-legend.js";
+import statsPetKillsRouter from "./routes/stats-pet-kills.js";
+import statsPunchingUpRouter from "./routes/stats-punching-up.js";
 import { captureRawJsonBody } from "./services/raw-json-body.js";
 import rosterRouter from "./routes/roster.js";
 import statusRouter from "./routes/status.js";
@@ -73,6 +77,10 @@ export function createApp(options: CreateAppOptions = {}): Express {
   app.use(statsPublicEnemyRouter);
   app.use(statsBotWranglerRouter);
   app.use(statsVendorTrashMagnateRouter);
+  app.use(statsGottaKillEmAllRouter);
+  app.use(statsLooseChangeLegendRouter);
+  app.use(statsPetKillsRouter);
+  app.use(statsPunchingUpRouter);
 
   app.get("/health", (_req, res) => {
     res.json({ ok: true });

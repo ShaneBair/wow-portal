@@ -62,6 +62,39 @@ export const STATISTICS_CATALOG = [
     order: 20
   },
   {
+    slug: "gotta-kill-em-all",
+    title: "Gotta Kill \u2019Em All",
+    shortDescription: "The characters that have killed the widest variety of creature types.",
+    category: "combat",
+    icon: "\uD83D\uDC7E",
+    keywords: ["creature", "variety", "kills", "pet", "character"],
+    populationMode: "event",
+    component: lazy(() => import("../components/GottaKillEmAllPanel.js").then((module) => ({ default: module.GottaKillEmAllPanel }))),
+    order: 30
+  },
+  {
+    slug: "let-the-pet-cook",
+    title: "Let the Pet Cook",
+    shortDescription: "The characters whose pets land the most recorded creature killing blows.",
+    category: "combat",
+    icon: "\uD83D\uDC3E",
+    keywords: ["pet", "kills", "owner", "creature", "companion"],
+    populationMode: "event",
+    component: lazy(() => import("../components/PetKillsPanel.js").then((module) => ({ default: module.PetKillsPanel }))),
+    order: 40
+  },
+  {
+    slug: "punching-up",
+    title: "Punching Up",
+    shortDescription: "The largest recorded creature-level gaps overcome by current characters.",
+    category: "combat",
+    icon: "\uD83E\uDD4A",
+    keywords: ["level", "creature", "kill", "underdog", "pet"],
+    populationMode: "event",
+    component: lazy(() => import("../components/PunchingUpPanel.js").then((module) => ({ default: module.PunchingUpPanel }))),
+    order: 50
+  },
+  {
     slug: "most-deaths",
     title: "Most Deaths",
     shortDescription: "The characters with the highest recorded death totals.",
@@ -126,6 +159,17 @@ export const STATISTICS_CATALOG = [
     populationMode: "all-characters",
     component: lazy(() => import("../components/VendorTrashMagnatePanel.js").then((module) => ({ default: module.VendorTrashMagnatePanel }))),
     order: 10
+  },
+  {
+    slug: "loose-change-legend",
+    title: "Loose Change Legend",
+    shortDescription: "The current characters with the most cumulative money looted.",
+    category: "economy",
+    icon: "\uD83E\uDE99",
+    keywords: ["gold", "money", "loot", "copper", "wealth"],
+    populationMode: "all-characters",
+    component: lazy(() => import("../components/LooseChangeLegendPanel.js").then((module) => ({ default: module.LooseChangeLegendPanel }))),
+    order: 20
   },
   {
     slug: "bot-wrangler",
