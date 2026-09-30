@@ -185,7 +185,7 @@ function DeathLeaderboardTable({ entries }: { entries: DeathLeaderboardEntry[] }
   );
 }
 
-export function DeathLeaderboardPanel() {
+export function DeathLeaderboardPanel({ showHeading = true }: { showHeading?: boolean } = {}) {
   const { population } = useStatsPopulationContext();
   const leaderboardQuery = useQuery({
     queryKey: statsPopulationQueryKey("deaths", population),
@@ -197,8 +197,10 @@ export function DeathLeaderboardPanel() {
   const leaderboard = leaderboardQuery.data;
 
   return (
-    <section className="panel deaths-panel" aria-labelledby="deathsHeading">
-      <h2 id="deathsHeading">Most Deaths</h2>
+    <section className="panel deaths-panel"
+      aria-labelledby={showHeading ? "deathsHeading" : undefined}
+      aria-label={showHeading ? undefined : "Most Deaths statistics"}>
+      {showHeading && <h2 id="deathsHeading">Most Deaths</h2>}
       {leaderboard && (
         <p className="deaths-scope">
           Known creature and PvP deaths before{" "}

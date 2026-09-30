@@ -8,25 +8,22 @@ import {
   type SortingState
 } from "@tanstack/react-table";
 import { useState } from "react";
-import {
-  getBossKillLeaderboard,
-  type BossKillLeaderboardEntry
-} from "../api/boss-kill-leaderboard.js";
+import { getTouchingGrass, type TouchingGrassEntry } from "../api/touching-grass.js";
 import { statsPopulationQueryKey, useStatsPopulationContext } from "../stats/stats-population.js";
 
 const STALE_TIME_MS = 60_000;
 const tableFeatureSet = tableFeatures({ rowSortingFeature, sortedRowModel: createSortedRowModel() });
-const columnHelper = createColumnHelper<typeof tableFeatureSet, BossKillLeaderboardEntry>();
+const columnHelper = createColumnHelper<typeof tableFeatureSet, TouchingGrassEntry>();
 
 function compareText(left: string, right: string): number {
   return left.localeCompare(right, undefined, { sensitivity: "base" });
 }
 
-function compareIdentity(left: BossKillLeaderboardEntry, right: BossKillLeaderboardEntry): number {
+function compareIdentity(left: TouchingGrassEntry, right: TouchingGrassEntry): number {
   return compareText(left.characterName, right.characterName) ||
-    compareText(left.accountLogin, right.accountLogin) || Number(left.isBot) - Number(right.isBot) ||
-    left.bossKills - right.bossKills || compareText(left.race, right.race) ||
-    compareText(left.class, right.class) || left.level - right.level;
+    compareText(left.accountLogin, right.accountLogin) || compareText(left.type, right.type) ||
+    left.zonesVisited - right.zonesVisited || left.mapsVisited - right.mapsVisited ||
+    compareText(left.lastRecordedAt, right.lastRecordedAt);
 }
 
 const columns = columnHelper.columns([
@@ -60,17 +57,30 @@ const columns = columnHelper.columns([
     sortFn: (left, right) => compareText(left.original.accountLogin, right.original.accountLogin) ||
       compareIdentity(left.original, right.original)
   }),
-  columnHelper.accessor("isBot", {
+  columnHelper.accessor("type", {
     header: "Type",
-    cell: (context) => context.getValue() ? "Bot" : "Player",
-    sortFn: (left, right) => Number(left.original.isBot) - Number(right.original.isBot) ||
+    cell: (context) => context.getValue(),
+    sortFn: (left, right) => compareText(left.original.type, right.original.type) ||
       compareIdentity(left.original, right.original)
   }),
-  columnHelper.accessor("bossKills", {
-    header: "Boss kills",
+  columnHelper.accessor("zonesVisited", {
+    header: "Zones",
     cell: (context) => context.getValue(),
     sortDescFirst: true,
-    sortFn: (left, right) => left.original.bossKills - right.original.bossKills ||
+    sortFn: (left, right) => left.original.zonesVisited - right.original.zonesVisited ||
+      compareIdentity(left.original, right.original)
+  }),
+  columnHelper.accessor("mapsVisited", {
+    header: "Maps",
+    cell: (context) => context.getValue(),
+    sortDescFirst: true,
+    sortFn: (left, right) => left.original.mapsVisited - right.original.mapsVisited ||
+      compareIdentity(left.original, right.original)
+  }),
+  columnHelper.accessor("lastRecordedAt", {
+    header: "Activity span",
+    cell: (context) => context.getValue(),
+    sortFn: (left, right) => compareText(left.original.lastRecordedAt, right.original.lastRecordedAt) ||
       compareIdentity(left.original, right.original)
   })
 ]);
@@ -81,12 +91,11 @@ function sortLabel(name: string, direction: false | "asc" | "desc"): string {
   return `Sort by ${name}, currently unsorted`;
 }
 
-function formatTimestamp(timestamp: string): string {
-  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" })
-    .format(new Date(timestamp));
+function formatDate(timestamp: string): string {
+  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(timestamp));
 }
 
-function ServerMvpTable({ entries }: { entries: BossKillLeaderboardEntry[] }) {
+function TouchingGrassTable({ entries }: { entries: TouchingGrassEntry[] }) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const table = useTable({
     features: tableFeatureSet,
@@ -97,8 +106,8 @@ function ServerMvpTable({ entries }: { entries: BossKillLeaderboardEntry[] }) {
     enableMultiSort: false,
     enableSortingRemoval: true
   });
-  return <div className="table-container boss-kill-table-container">
-    <table className="boss-kill-table">
+  return <div className="table-container touching-grass-table-container">
+    <table className="touching-grass-table">
       <thead>{table.getHeaderGroups().map((group) => <tr key={group.id}>
         {group.headers.map((header) => {
           const direction = header.column.getIsSorted();
@@ -106,8 +115,7 @@ function ServerMvpTable({ entries }: { entries: BossKillLeaderboardEntry[] }) {
           return <th key={header.id} scope="col" aria-sort={direction === false
             ? undefined : direction === "asc" ? "ascending" : "descending"}>
             <button type="button" className="sort-button"
-              onClick={header.column.getToggleSortingHandler()}
-              aria-label={sortLabel(name, direction)}>
+              onClick={header.column.getToggleSortingHandler()} aria-label={sortLabel(name, direction)}>
               <span>{name}</span><span className="sort-indicator" aria-hidden="true">
                 {direction === "asc" ? "↑" : direction === "desc" ? "↓" : "↕"}
               </span>
@@ -121,71 +129,59 @@ function ServerMvpTable({ entries }: { entries: BossKillLeaderboardEntry[] }) {
         <td data-label="Class">{row.original.class}</td>
         <td data-label="Level" className="numeric-cell">{row.original.level}</td>
         <td data-label="Account" className="account-name">{row.original.accountLogin}</td>
-        <td data-label="Type"><span className={`population-type ${row.original.isBot ? "bot" : "player"}`}>
-          {row.original.isBot ? "Bot" : "Player"}
+        <td data-label="Type"><span className={`population-type ${row.original.type.toLowerCase()}`}>
+          {row.original.type}
         </span></td>
-        <td data-label="Boss kills" className="boss-kill-total">{row.original.bossKills.toLocaleString()}</td>
+        <td data-label="Zones" className="touching-grass-total">{row.original.zonesVisited}</td>
+        <td data-label="Maps" className="numeric-cell">{row.original.mapsVisited}</td>
+        <td data-label="Activity span" className="activity-span">
+          <time dateTime={row.original.firstRecordedAt}>{formatDate(row.original.firstRecordedAt)}</time>
+          <span aria-hidden="true"> – </span>
+          <time dateTime={row.original.lastRecordedAt}>{formatDate(row.original.lastRecordedAt)}</time>
+        </td>
       </tr>)}</tbody>
     </table>
   </div>;
 }
 
-function WinnerSummary({ entries }: { entries: BossKillLeaderboardEntry[] }) {
-  const total = entries[0]!.bossKills;
-  const winners = entries.filter((entry) => entry.bossKills === total);
-  const names = winners.map((winner) => `${winner.characterName} (${winner.isBot ? "Bot" : "Player"})`);
-  return <p className="award-winner">
-    <strong>{winners.length === 1 ? "Leader:" : "Co-winners:"}</strong>{" "}
-    {names.join(winners.length === 2 ? " and " : ", ")} — {total.toLocaleString()} recorded boss
-    {total === 1 ? " killing blow" : " killing blows"}{winners.length > 1 ? " each" : ""}.
-  </p>;
-}
-
-export function ServerMvpPanel({ showHeading = true }: { showHeading?: boolean } = {}) {
+export function TouchingGrassPanel({ showHeading = true }: { showHeading?: boolean } = {}) {
   const { population } = useStatsPopulationContext();
   const leaderboardQuery = useQuery({
-    queryKey: statsPopulationQueryKey("boss-kills", population),
-    queryFn: ({ signal }) => getBossKillLeaderboard(population, signal),
+    queryKey: statsPopulationQueryKey("touching-grass", population),
+    queryFn: ({ signal }) => getTouchingGrass(population, signal),
     staleTime: STALE_TIME_MS,
     retry: false,
     refetchInterval: false
   });
   const leaderboard = leaderboardQuery.data;
-  return <section className="panel award-panel server-mvp-panel"
-    aria-labelledby={showHeading ? "serverMvpHeading" : undefined}
-    aria-label={showHeading ? undefined : "Server MVP statistics"}
+  return <section className="panel touching-grass-panel"
+    aria-labelledby={showHeading ? "touchingGrassHeading" : undefined}
+    aria-label={showHeading ? undefined : "Touching Grass statistics"}
     aria-busy={leaderboardQuery.isPending}>
-    {showHeading && <div className="award-heading">
-      <span className="award-icon" aria-hidden="true">🏆</span>
-      <div><h3 id="serverMvpHeading">Server MVP</h3><p>Most boss kills</p></div>
-    </div>}
-    {!showHeading && <p className="award-detail"><strong>Most boss kills.</strong></p>}
-    <p className="award-detail boss-kill-coverage">
-      {leaderboard?.coverage.firstRecordedAt
-        ? <>
-            Recorded boss killing blows from{" "}
-            <time dateTime={leaderboard.coverage.firstRecordedAt}>
-              {formatTimestamp(leaderboard.coverage.firstRecordedAt)}
-            </time>{" "}
-            onward. Pet kills credit the owner.
-          </>
-        : leaderboard
-          ? "No creature-kill coverage date is available. Pet kills credit the owner."
-          : "Recorded boss killing blows since creature tracking began. Pet kills credit the owner."}
-    </p>
+    {showHeading && <h2 id="touchingGrassHeading">Touching Grass</h2>}
     <p className="award-detail">
-      Covers recognized creature-credit and world-boss entries. Spell-credit-only encounters are
-      excluded unless independently boss-marked; this is killing-blow credit, not group participation.
+      Ranks distinct zones with recorded activity. This is an event footprint, not distance traveled
+      or the Explorer achievement.
     </p>
-    <p className="deaths-limit">Showing up to 25 server-ranked results. Column sorting reorders these results.</p>
-    {leaderboardQuery.isPending && <p className="players-message" role="status">Loading boss kill statistics...</p>}
-    {leaderboardQuery.isError && <p className="players-message" role="status">Boss kill statistics are temporarily unavailable.</p>}
-    {leaderboard && leaderboard.entries.length === 0 && <p className="players-message" role="status">
-      No recorded boss kills for this population yet.
+    {leaderboard?.coverage.firstRecordedAt && <p className="deaths-scope">
+      Recorded activity since{" "}
+      <time dateTime={leaderboard.coverage.firstRecordedAt}>
+        {formatDate(leaderboard.coverage.firstRecordedAt)}
+      </time>.
     </p>}
-    {leaderboard && leaderboard.entries.length > 0 && <>
-      <WinnerSummary entries={leaderboard.entries} />
-      <ServerMvpTable entries={leaderboard.entries} />
-    </>}
+    <p className="deaths-limit">Showing up to 25 server-ranked results. Column sorting reorders these results.</p>
+    {leaderboardQuery.isPending && <p className="players-message" role="status">
+      Loading Touching Grass statistics...
+    </p>}
+    {leaderboardQuery.isError && <div className="stats-error" role="status">
+      <p className="players-message">Touching Grass statistics are temporarily unavailable.</p>
+      <button type="button" className="stats-retry" onClick={() => void leaderboardQuery.refetch()}>
+        Retry
+      </button>
+    </div>}
+    {leaderboard && leaderboard.entries.length === 0 && <p className="players-message" role="status">
+      No zones with recorded activity for this population yet.
+    </p>}
+    {leaderboard && leaderboard.entries.length > 0 && <TouchingGrassTable entries={leaderboard.entries} />}
   </section>;
 }

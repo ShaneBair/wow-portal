@@ -172,6 +172,13 @@ test("builds sorted parameterized account exclusions without interpolating IDs",
   assert.equal(exclusion.clause, "    AND a.id NOT IN (?, ?)\n");
   assert.deepEqual(exclusion.values, [7, 19]);
   assert.doesNotMatch(exclusion.clause, /7|19/u);
+  const victimExclusion = buildAccountExclusionClause(
+    standardVisibility([19, 7]),
+    "e.value2",
+    "      "
+  );
+  assert.equal(victimExclusion.clause, "      AND e.value2 NOT IN (?, ?)\n");
+  assert.deepEqual(victimExclusion.values, [7, 19]);
   assert.throws(
     () => buildAccountExclusionClause(standardVisibility([0]), "c.account"),
     AccountVisibilityDataError

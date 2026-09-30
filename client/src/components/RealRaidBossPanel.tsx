@@ -9,7 +9,7 @@ function formatCoverageDate(timestamp: string): string {
     .format(new Date(timestamp));
 }
 
-export function RealRaidBossPanel() {
+export function RealRaidBossPanel({ showHeading = true }: { showHeading?: boolean } = {}) {
   const { population } = useStatsPopulationContext();
   const leaderboardQuery = useQuery({
     queryKey: statsPopulationQueryKey("real-raid-boss", population),
@@ -20,9 +20,11 @@ export function RealRaidBossPanel() {
   });
   const leaderboard = leaderboardQuery.data;
 
-  return <section className="panel real-raid-boss-panel" aria-labelledby="realRaidBossHeading"
+  return <section className="panel real-raid-boss-panel"
+    aria-labelledby={showHeading ? "realRaidBossHeading" : undefined}
+    aria-label={showHeading ? undefined : "The Real Raid Boss statistics"}
     aria-busy={leaderboardQuery.isPending}>
-    <h2 id="realRaidBossHeading">The Real Raid Boss</h2>
+    {showHeading && <h2 id="realRaidBossHeading">The Real Raid Boss</h2>}
     <p className="award-detail">
       Only recorded creature killing blows are included. PvP, environmental deaths, and canonical
       total-death records do not count.

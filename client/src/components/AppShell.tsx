@@ -17,7 +17,7 @@ export function AppShell() {
       <div className="shell-header">
         <nav className="primary-navigation" aria-label="Primary">
           <NavLink to="/" end>Home</NavLink>
-          <NavLink to="/stats" end>Stats</NavLink>
+          <NavLink to="/stats">Stats</NavLink>
           {authenticatedSession && <NavLink to="/roster" end>Roster</NavLink>}
           <NavLink to="/boosts" end>Boosts</NavLink>
         </nav>

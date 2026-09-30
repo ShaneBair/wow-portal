@@ -36,7 +36,7 @@ function leaderboard(population: "players" | "all", overrides: Record<string, un
 
 function renderStats(
   bossFetch: (population: "players" | "all", signal?: AbortSignal) => Promise<Response>,
-  options: { path?: string; allPanels?: boolean } = {}
+  options: { path?: string } = {}
 ) {
   const fetchMock = vi.fn<typeof fetch>((input, init) => {
     const requestPath = pathOf(input);
@@ -65,7 +65,7 @@ function renderStats(
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: Infinity, refetchOnWindowFocus: false } }
   });
-  const element = options.allPanels ? <StatsPage /> : <StatsPage><ServerMvpPanel /></StatsPage>;
+  const element = <StatsPage><ServerMvpPanel /></StatsPage>;
   const router = createMemoryRouter([{ path: "/stats", element }], {
     initialEntries: [options.path ?? "/stats?population=players"]
   });
@@ -89,7 +89,7 @@ describe("Server MVP panel", () => {
     expect(document.querySelector(".server-mvp-panel .award-icon")?.getAttribute("aria-hidden")).toBe("true");
   });
 
-  it("renders empty and unavailable states without coupling other awards", async () => {
+  it("renders empty and unavailable states", async () => {
     const empty = renderStats((population) => Promise.resolve(jsonResponse(leaderboard(population, {
       coverage: { firstRecordedAt: null }, count: 0, entries: []
     }))));
@@ -97,10 +97,8 @@ describe("Server MVP panel", () => {
     expect(screen.getByText("No creature-kill coverage date is available. Pet kills credit the owner.")).toBeTruthy();
     empty.unmount();
 
-    renderStats(() => Promise.resolve(jsonResponse({ error: "Unavailable." }, 503)), { allPanels: true });
+    renderStats(() => Promise.resolve(jsonResponse({ error: "Unavailable." }, 503)));
     expect(await screen.findByText("Boss kill statistics are temporarily unavailable.")).toBeTruthy();
-    expect(await screen.findByText("No recorded quest completions for this population yet.")).toBeTruthy();
-    expect(await screen.findByText("No recorded deaths for this population yet.")).toBeTruthy();
   });
 
   it("marks tied winners and keyboard sorting does not change the winner summary", async () => {

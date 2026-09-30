@@ -17,6 +17,7 @@ export function App() {
         <Route element={<AppShell />}>
           <Route path="/" element={<HomePage />} />
           <Route path="/stats" element={<StatsPage />} />
+          <Route path="/stats/:statSlug" element={<StatsPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/boosts" element={(
             <ProtectedRoute returnTo="/boosts">

@@ -65,6 +65,37 @@ const emptyRealRaidBoss = {
   entries: []
 };
 
+const emptyTouchingGrass = {
+  generatedAt: "2026-08-24T16:00:00.000Z",
+  population: "players",
+  coverage: { firstRecordedAt: null },
+  count: 0,
+  entries: []
+};
+
+const emptyPublicEnemy = {
+  generatedAt: "2026-09-29T18:00:00.000Z",
+  population: "players",
+  coverage: { firstRecordedAt: null },
+  entries: []
+};
+
+const emptyBotWrangler = {
+  generatedAt: "2026-09-29T18:00:00.000Z",
+  population: "human-vs-bot",
+  coverage: { firstRecordedAt: null },
+  count: 0,
+  entries: []
+};
+
+const emptyVendorTrashMagnate = {
+  generatedAt: "2026-09-29T18:00:00.000Z",
+  population: "all-characters",
+  coverage: { kind: "azerothcore-lifetime-counter" },
+  count: 0,
+  entries: []
+};
+
 const anonymousSession = { authenticated: false };
 
 type FetchMock = ReturnType<typeof vi.fn<typeof fetch>>;
@@ -144,6 +175,22 @@ function installFetchMock(options: {
       return Promise.resolve(jsonResponse(emptyRealRaidBoss));
     }
 
+    if (path.startsWith("/api/stats/touching-grass?")) {
+      return Promise.resolve(jsonResponse(emptyTouchingGrass));
+    }
+
+    if (path.startsWith("/api/stats/public-enemy?")) {
+      return Promise.resolve(jsonResponse(emptyPublicEnemy));
+    }
+
+    if (path === "/api/stats/bot-wrangler") {
+      return Promise.resolve(jsonResponse(emptyBotWrangler));
+    }
+
+    if (path === "/api/stats/vendor-trash-magnate") {
+      return Promise.resolve(jsonResponse(emptyVendorTrashMagnate));
+    }
+
     if (path === "/api/auth/session") {
       return options.session?.() ?? Promise.resolve(jsonResponse(anonymousSession));
     }
@@ -217,6 +264,10 @@ async function flushMicrotasks(): Promise<void> {
   });
 }
 
+function leaderboardRequests(fetchMock: FetchMock) {
+  return fetchMock.mock.calls.filter(([input]) => requestPath(input).startsWith("/api/stats/"));
+}
+
 describe("application routes", () => {
   it("renders the Home route with one page heading and its title", async () => {
     installFetchMock();
@@ -228,28 +279,29 @@ describe("application routes", () => {
     await waitFor(() => expect(document.title).toBe("DaBoysZeroth"));
   });
 
-  it("renders the Stats controls route with one page heading and its title", async () => {
+  it("renders the Stats hub without initializing leaderboard requests", async () => {
     const fetchMock = installFetchMock();
     renderRoute("/stats");
 
     expect(screen.getByRole("heading", { level: 1, name: "Stats" })).toBeTruthy();
-    expect(screen.getByRole("group", { name: "Show" })).toBeTruthy();
-    expect(screen.getByRole<HTMLInputElement>("radio", { name: "Players only" }).checked).toBe(true);
-    expect(screen.getByRole("heading", { level: 2, name: "Most Deaths" })).toBeTruthy();
+    expect(screen.getByRole("searchbox", { name: "Search statistics" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Deaths & Danger" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Most Deaths/u }).getAttribute("href"))
+      .toBe("/stats/most-deaths?population=players");
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expectCurrentNavigationLink("Stats");
     await waitFor(() => expect(document.title).toBe("Stats | DaBoysZeroth"));
-    await screen.findByText("No recorded deaths for this population yet.");
-    expect(fetchMock).toHaveBeenCalledTimes(7);
+    await screen.findByText("Server online");
+    expect(leaderboardRequests(fetchMock)).toHaveLength(0);
   });
 
   it("keeps Stats current when query parameters are present", async () => {
     const fetchMock = installFetchMock();
-    renderRoute("/stats?population=bots");
+    const { router } = renderRoute("/stats?population=bots");
 
     expectCurrentNavigationLink("Stats");
-    await screen.findByText("No recorded deaths for this population yet.");
-    expect(fetchMock).toHaveBeenCalledTimes(7);
+    await waitFor(() => expect(router.state.location.search).toContain("population=players"));
+    expect(leaderboardRequests(fetchMock)).toHaveLength(0);
   });
 
   it("navigates through links and browser history with matching titles and active states", async () => {
@@ -264,8 +316,7 @@ describe("application routes", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Stats" })).toBeTruthy();
     expectCurrentNavigationLink("Stats");
     await waitFor(() => expect(document.title).toBe("Stats | DaBoysZeroth"));
-    await screen.findByText("No recorded deaths for this population yet.");
-    expect(fetchMock).toHaveBeenCalledTimes(homeRequestCount + 6);
+    expect(leaderboardRequests(fetchMock)).toHaveLength(0);
 
     await act(async () => {
       await router.navigate(-1);
@@ -273,8 +324,7 @@ describe("application routes", () => {
     expect(screen.getByRole("heading", { level: 1, name: "DaBoysZeroth" })).toBeTruthy();
     expectCurrentNavigationLink("Home");
     await waitFor(() => expect(document.title).toBe("DaBoysZeroth"));
-    await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThan(homeRequestCount));
-    const requestCountBeforeForward = fetchMock.mock.calls.length;
+    await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(homeRequestCount));
 
     await act(async () => {
       await router.navigate(1);
@@ -282,7 +332,18 @@ describe("application routes", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Stats" })).toBeTruthy();
     expectCurrentNavigationLink("Stats");
     await waitFor(() => expect(document.title).toBe("Stats | DaBoysZeroth"));
-    expect(fetchMock).toHaveBeenCalledTimes(requestCountBeforeForward + 1);
+    expect(leaderboardRequests(fetchMock)).toHaveLength(0);
+  });
+
+  it("loads only the selected statistic on a direct detail route", async () => {
+    const fetchMock = installFetchMock();
+    renderRoute("/stats/most-deaths?population=players");
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Most Deaths" })).toBeTruthy();
+    await screen.findByText("No recorded deaths for this population yet.");
+    expectCurrentNavigationLink("Stats");
+    expect(leaderboardRequests(fetchMock)).toHaveLength(1);
+    expect(requestPath(leaderboardRequests(fetchMock)[0]![0])).toContain("/api/stats/deaths?");
   });
 
   it("renders a client-side not-found page for an unmatched route", async () => {

@@ -1,6 +1,6 @@
 # Vendor Trash Magnate
 
-**Status:** Draft; implementation gated on deployed DBC criterion verification  
+**Status:** Implemented locally; deployment grant, configuration, and live sale verification remain  
 **Owner:** WoW Portal  
 **Repository:** `wow-portal`
 
@@ -56,3 +56,23 @@ Add the public “Vendor Trash Magnate” card outside the event population filt
 ## Non-Goals
 
 Gray-item-only totals, purchase spending, auction income, per-item sales, bot/human historical splitting, and changing achievement counters are out of scope.
+
+## Implementation Notes
+
+Criterion verification was completed against the DBC loaded by the local deployed worldserver on
+2026-09-29. `Achievement_Criteria.dbc` is a WDBC file with 7,655 records, 31 fields, and 124-byte
+records. It contains two enum-type-59 rows:
+
+- criterion `3361`, parent achievement `921`, description and parent title “Gold from vendors”;
+- criterion `4091`, parent achievement `328` (“Total gold acquired”), description “Money from
+  vendors”.
+
+The matching AzerothCore vendor-sale path calls the type-59 update once with the sale price, and the
+achievement manager applies that same accumulated delta to every criterion of the type. An
+identifier-free deployed-data check found 33 rows for each criterion, the same observed range of
+22 through 2,094,739 copper, and zero differing counters among matching character rows. The two
+rows are therefore duplicate representations of the same vendor income rather than additive
+sources. Criterion `3361` is the canonical portal choice because it is the dedicated vendor-income
+statistic; `4091` is the duplicated component beneath the aggregate “Total gold acquired” statistic.
+The runtime setting remains mandatory so a different deployment cannot inherit this conclusion
+silently.

@@ -120,6 +120,70 @@ templates retain their historical totals under an `Unknown creature #<entry>` la
 deployment, run the query with `EXPLAIN` and confirm one controlled creature death increments one
 row under both the standard and privileged visibility scopes.
 
+Touching Grass counts distinct positive recorded zones across the eight default event streams and
+deliberately ignores optional loot, XP, and money events. It uses the current character/account
+join and requires event-time account agreement before grouping separate Player and Bot histories.
+No new table is required. In addition to the event columns used by the existing leaderboards, the
+statistics reader needs column-level `SELECT` on `mod_player_stats_events.map_id`; `zone_id` is
+already required by Bad Neighborhood. Before deployment, run `EXPLAIN` and confirm the all-history
+distinct query remains under eight seconds at live volume; otherwise add an independently reviewed
+index or rollup before enabling the card.
+
+Public Enemy #1 aggregates valid direct and pet-owner creature killing blows by historical creature
+entry without requiring a surviving character row. It resolves current names through
+`STATS_WORLD_DATABASE.creature_template`, using a safe entry-based fallback for removed templates;
+the existing event-table and creature-template read grants are sufficient. Before deployment, run
+both population queries with `EXPLAIN`, confirm the event-type index is used and the query remains
+under eight seconds, then compare controlled direct and pet kills under standard and privileged
+visibility scopes.
+
+Bot Wrangler has fixed human-killer/bot-victim semantics and reads only valid `PVP_KILL` events.
+It joins current killer metadata but never returns victim names, GUIDs, or account IDs. Standard
+visibility excludes an event when either participant account is hidden; no new table, grant, world
+database read, or module change is required. Before deployment, run the query with `EXPLAIN`, verify
+it remains below eight seconds, and confirm one controlled human-versus-bot kill under both standard
+and privileged visibility scopes.
+
+Vendor Trash Magnate reads the lifetime vendor-income counter from
+`character_achievement_progress`. The deployed WotLK DBC and counter data were verified against the
+implementation notes in its specification; for that verified deployment, set the ignored `.env`
+value `STATS_VENDOR_MONEY_CRITERIA_ID=3361`. The setting is deliberately mandatory and has no code
+default. Counters remain base-10 strings through the API so unsigned 64-bit copper values never lose
+precision in JavaScript.
+
+If the statistics reader does not already have access, grant only these progress-table columns,
+substituting the deployed schema, user, and Docker-network host scope:
+
+```sql
+GRANT SELECT (`guid`, `criteria`, `counter`)
+ON `CHARACTERS_DATABASE`.`character_achievement_progress`
+TO 'portal-stats-reader'@'portal-host';
+```
+
+Do not grant progress-table writes. Before enabling the card, run its bound query with `EXPLAIN`,
+confirm it remains below eight seconds, sell a known-price item, and verify the exact copper delta
+under both standard and privileged visibility scopes.
+
+Vendor Trash Magnate reads the lifetime vendor-income counter from
+`character_achievement_progress`. The deployed WotLK DBC and counter data were verified against the
+implementation notes in its specification; for that verified deployment, set the ignored `.env`
+value `STATS_VENDOR_MONEY_CRITERIA_ID=3361`. The setting is deliberately mandatory and has no code
+default. Counters remain base-10 strings through the API so unsigned 64-bit copper values never lose
+precision in JavaScript.
+
+If the statistics reader does not already have access, grant only these progress-table columns,
+substituting the deployed schema, user, and Docker-network host scope:
+
+```sql
+GRANT SELECT (`guid`, `criteria`, `counter`)
+ON `CHARACTERS_DATABASE`.`character_achievement_progress`
+TO 'portal-stats-reader'@'portal-host';
+```
+
+Do not grant progress-table writes. Before enabling the card, run its bound query with `EXPLAIN`,
+confirm it remains below eight seconds, sell a known-price item, and verify the exact copper delta
+under both standard and privileged visibility scopes.
+
 The Completionist award reuses that read-only connection and counts `QUEST_COMPLETE` event rows,
 with separate Player/Bot groups and independent population caches. Ensure the event-table grant
 includes column-level `SELECT` for `event_time`, `event_type`, `actor_guid`, `actor_is_bot`,

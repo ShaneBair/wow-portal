@@ -35,7 +35,10 @@ test("serves only allowlisted browser routes from the client output", async () =
   const baseUrl = `http://127.0.0.1:${port}`;
 
   try {
-    for (const route of ["/", "/stats", "/stats?population=bots", "/login", "/boosts", "/roster"]) {
+    for (const route of [
+      "/", "/stats", "/stats?population=bots", "/stats/most-deaths",
+      "/stats/not-a-registered-statistic?population=all", "/login", "/boosts", "/roster"
+    ]) {
       const response = await fetch(`${baseUrl}${route}`);
       const body = await response.text();
       assert.equal(response.status, 200);
@@ -61,7 +64,10 @@ test("serves only allowlisted browser routes from the client output", async () =
     assert.equal(malformedBoost.headers.get("cache-control"), "no-store");
     assert.deepEqual(await malformedBoost.json(), { error: "Request body must be valid JSON." });
 
-    for (const route of ["/api/does-not-exist", "/missing-asset.js", "/not-allowlisted"]) {
+    for (const route of [
+      "/api/does-not-exist", "/missing-asset.js", "/not-allowlisted",
+      "/stats/two/segments", "/stats/Not-Safe"
+    ]) {
       const response = await fetch(`${baseUrl}${route}`);
       const body = await response.text();
       assert.equal(response.status, 404);

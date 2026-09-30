@@ -1,6 +1,6 @@
 # Public Enemy #1
 
-**Status:** Draft  
+**Status:** Implemented locally; deployment verification remains  
 **Owner:** WoW Portal  
 **Repository:** `wow-portal`
 

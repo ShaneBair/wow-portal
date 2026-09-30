@@ -1,4 +1,4 @@
-import express, { type ErrorRequestHandler, type Express } from "express";
+import express, { type ErrorRequestHandler, type Express, type RequestHandler } from "express";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import onlinePlayersRouter from "./routes/online-players.js";
@@ -11,6 +11,10 @@ import statsBossKillsRouter from "./routes/stats-boss-kills.js";
 import statsQuestCompletionsRouter from "./routes/stats-quest-completions.js";
 import statsBadNeighborhoodRouter from "./routes/stats-bad-neighborhood.js";
 import statsRealRaidBossRouter from "./routes/stats-real-raid-boss.js";
+import statsTouchingGrassRouter from "./routes/stats-touching-grass.js";
+import statsPublicEnemyRouter from "./routes/stats-public-enemy.js";
+import statsBotWranglerRouter from "./routes/stats-bot-wrangler.js";
+import statsVendorTrashMagnateRouter from "./routes/stats-vendor-trash-magnate.js";
 import rosterRouter from "./routes/roster.js";
 import statusRouter from "./routes/status.js";
 
@@ -64,6 +68,10 @@ export function createApp(options: CreateAppOptions = {}): Express {
   app.use(statsQuestCompletionsRouter);
   app.use(statsBadNeighborhoodRouter);
   app.use(statsRealRaidBossRouter);
+  app.use(statsTouchingGrassRouter);
+  app.use(statsPublicEnemyRouter);
+  app.use(statsBotWranglerRouter);
+  app.use(statsVendorTrashMagnateRouter);
 
   app.get("/health", (_req, res) => {
     res.json({ ok: true });
@@ -71,16 +79,19 @@ export function createApp(options: CreateAppOptions = {}): Express {
 
   app.use(express.static(clientOutputDir, { index: false }));
 
-  app.get(["/", "/stats", "/login", "/boosts", "/roster", "/settings"], (_req, res, next) => {
-    if (_req.path === "/settings") {
-      res.set("Cache-Control", "no-store");
+  const sendClientIndex: RequestHandler = (request, response, next) => {
+    if (request.path === "/settings") {
+      response.set("Cache-Control", "no-store");
     }
-    res.sendFile(path.join(clientOutputDir, "index.html"), (error) => {
+    response.sendFile(path.join(clientOutputDir, "index.html"), (error) => {
       if (error) {
         next(error);
       }
     });
-  });
+  };
+
+  app.get(["/", "/stats", "/login", "/boosts", "/roster", "/settings"], sendClientIndex);
+  app.get(/^\/stats\/[a-z0-9]+(?:-[a-z0-9]+)*$/u, sendClientIndex);
 
   return app;
 }

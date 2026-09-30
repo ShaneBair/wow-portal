@@ -1,6 +1,6 @@
 # Bot Wrangler
 
-**Status:** Draft  
+**Status:** Implemented locally; deployment verification remains  
 **Owner:** WoW Portal  
 **Repository:** `wow-portal`
 

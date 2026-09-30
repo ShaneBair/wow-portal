@@ -5,6 +5,335 @@
   color: #f4f6f8;
 }
 
+/* Statistics directory and focused statistic routes */
+.stats-hub-controls {
+  display: grid;
+  gap: 22px;
+  margin-bottom: 24px;
+}
+
+.stats-search-row > label {
+  margin: 0 0 8px;
+  font-weight: 700;
+}
+
+.stats-search-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.stats-search-field input {
+  margin: 0;
+}
+
+.stats-search-field button,
+.stats-category-controls button,
+.stats-no-results-actions button {
+  width: auto;
+  min-height: 44px;
+}
+
+.stats-category-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.stats-category-controls button {
+  border: 1px solid #3b4656;
+  background: #171e28;
+  color: #dbe2eb;
+}
+
+.stats-category-controls button[aria-pressed="true"] {
+  border-color: #8eb4ff;
+  background: #263449;
+  color: #fff;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+.stats-category-controls button[aria-pressed="true"]::before {
+  content: "✓ ";
+}
+
+.stats-results-summary {
+  margin: 0 0 24px;
+  color: #bec6d2;
+  font-weight: 700;
+}
+
+.statistics-directory {
+  display: grid;
+  gap: 34px;
+}
+
+.statistics-category > h2 {
+  margin: 0 0 15px;
+  font-size: 1.2rem;
+}
+
+.statistics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr));
+  gap: 16px;
+}
+
+.statistic-tile {
+  display: flex;
+  min-width: 0;
+  min-height: 148px;
+  gap: 16px;
+  border: 1px solid #29313d;
+  border-radius: 16px;
+  padding: 22px;
+  background: rgba(18, 23, 32, .92);
+  color: #f4f6f8;
+  text-decoration: none;
+}
+
+.statistic-tile:hover {
+  border-color: #526176;
+  background: #171e28;
+}
+
+.statistic-tile:focus-visible {
+  outline: 3px solid #8eb4ff;
+  outline-offset: 3px;
+}
+
+.statistic-tile-icon {
+  flex: 0 0 auto;
+  font-size: 1.75rem;
+  line-height: 1.2;
+}
+
+.statistic-tile-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.statistic-tile-category {
+  color: #8eb4ff;
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.statistic-tile-title {
+  font-size: 1.08rem;
+  font-weight: 800;
+}
+
+.statistic-tile-description {
+  color: #aeb7c4;
+  line-height: 1.45;
+}
+
+.stats-no-results-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.stats-breadcrumbs {
+  margin-bottom: 22px;
+}
+
+.stats-breadcrumbs ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: #aeb7c4;
+}
+
+.stats-breadcrumbs li:not(:last-child)::after {
+  content: "/";
+  margin-left: 8px;
+  color: #687385;
+}
+
+.stats-detail-hero {
+  align-items: center;
+  margin-bottom: 26px;
+}
+
+.stats-detail-hero h1 {
+  font-size: clamp(2.5rem, 7vw, 4.8rem);
+}
+
+.stats-detail-hero h1:focus {
+  outline: none;
+}
+
+.stats-detail-toolbar {
+  margin-bottom: 20px;
+}
+
+.stats-detail-toolbar .stats-controls {
+  margin: 0;
+}
+
+.stats-fixed-population {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 16px;
+  padding-block: 20px;
+}
+
+.stats-fixed-population span {
+  color: #aeb7c4;
+}
+
+.stats-detail-layout {
+  display: grid;
+  grid-template-columns: minmax(190px, 230px) minmax(0, 1fr);
+  align-items: start;
+  gap: 20px;
+}
+
+.statistics-rail {
+  position: sticky;
+  top: 20px;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  border: 1px solid #252d39;
+  border-radius: 16px;
+  padding: 18px;
+  background: rgba(18, 23, 32, .96);
+}
+
+.statistics-rail-group + .statistics-rail-group {
+  margin-top: 20px;
+}
+
+.statistics-rail-group h2 {
+  margin: 0 0 7px;
+  color: #9da8b7;
+  font-size: .72rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.statistics-rail-group ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.statistics-rail-group a {
+  display: block;
+  min-height: 44px;
+  border-left: 3px solid transparent;
+  padding: 11px 8px 9px 11px;
+  color: #bec6d2;
+  text-decoration: none;
+}
+
+.statistics-rail-group a:hover {
+  background: #171e28;
+}
+
+.statistics-rail-group a[aria-current="page"] {
+  border-left-color: #8eb4ff;
+  background: #202a39;
+  color: #fff;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.statistics-rail-group a[aria-current="page"]::after {
+  content: " Current";
+  display: block;
+  margin-top: 3px;
+  color: #aeb7c4;
+  font-size: .68rem;
+  font-weight: 700;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.statistics-mobile-switcher {
+  display: none;
+}
+
+.statistic-panel-region {
+  min-width: 0;
+}
+
+.stats-detail-footer-nav {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 18px;
+  margin-top: 22px;
+  padding: 18px 0;
+}
+
+.stats-detail-footer-nav > :last-child {
+  text-align: right;
+}
+
+.stats-detail-footer-nav a,
+.stats-not-found a,
+.stats-chunk-error a {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+}
+
+@media (max-width: 760px) {
+  .statistics-rail {
+    display: none;
+  }
+
+  .statistics-mobile-switcher {
+    display: block;
+    margin-bottom: 20px;
+    padding: 20px;
+  }
+
+  .statistics-mobile-switcher label:first-child {
+    margin-top: 0;
+  }
+
+  .stats-detail-layout {
+    display: block;
+  }
+
+  .stats-detail-footer-nav {
+    grid-template-columns: 1fr;
+  }
+
+  .stats-detail-footer-nav > :last-child {
+    text-align: left;
+  }
+}
+
+@media (max-width: 420px) {
+  .stats-search-field {
+    grid-template-columns: 1fr;
+  }
+
+  .stats-search-field button {
+    width: 100%;
+  }
+
+  .statistic-tile {
+    padding: 18px;
+  }
+}
+
 * { box-sizing: border-box; }
 
 body {
@@ -640,7 +969,8 @@ code {
 .completionist-table,
 .boss-kill-table,
 .bad-neighborhood-table,
-.real-raid-boss-table {
+.real-raid-boss-table,
+.touching-grass-table {
   width: 100%;
   border-collapse: collapse;
   font-size: .9rem;
@@ -680,6 +1010,35 @@ code {
 
 .real-raid-boss-table tbody tr:last-child td {
   border-bottom: 0;
+}
+
+.touching-grass-table th,
+.touching-grass-table td {
+  padding: 13px 10px;
+  border-bottom: 1px solid #29313d;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.touching-grass-table th {
+  padding: 0;
+}
+
+.touching-grass-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.touching-grass-total {
+  color: #86c995;
+  font-size: 1.02rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.activity-span {
+  min-width: 12rem;
+  color: #bec6d2;
+  white-space: nowrap;
 }
 
 .creature-name {
@@ -831,18 +1190,21 @@ code {
   .boss-kill-table,
   .bad-neighborhood-table,
   .real-raid-boss-table,
+  .touching-grass-table,
   .roster-table tbody,
   .deaths-table tbody,
   .completionist-table tbody,
   .boss-kill-table tbody,
   .bad-neighborhood-table tbody,
   .real-raid-boss-table tbody,
+  .touching-grass-table tbody,
   .roster-table tr,
   .deaths-table tr,
   .completionist-table tr,
   .boss-kill-table tr,
   .bad-neighborhood-table tr,
   .real-raid-boss-table tr,
+  .touching-grass-table tr,
   .roster-table td {
     display: block;
     width: 100%;
@@ -861,6 +1223,11 @@ code {
   }
 
   .real-raid-boss-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .touching-grass-table td {
     display: block;
     width: 100%;
   }
@@ -885,6 +1252,14 @@ code {
   }
 
   .real-raid-boss-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+  }
+
+  .touching-grass-table thead {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -919,6 +1294,14 @@ code {
     background: #0c1118;
   }
 
+  .touching-grass-table tr {
+    margin-bottom: 14px;
+    border: 1px solid #29313d;
+    border-radius: 12px;
+    padding: 7px 12px;
+    background: #0c1118;
+  }
+
   .roster-table tr:last-child,
   .deaths-table tr:last-child,
   .completionist-table tr:last-child,
@@ -931,6 +1314,10 @@ code {
   }
 
   .real-raid-boss-table tr:last-child {
+    margin-bottom: 0;
+  }
+
+  .touching-grass-table tr:last-child {
     margin-bottom: 0;
   }
 
@@ -962,6 +1349,20 @@ code {
     overflow-wrap: anywhere;
   }
 
+  .touching-grass-table td {
+    display: grid;
+    width: 100%;
+    grid-template-columns: minmax(6.5rem, .7fr) minmax(0, 1.3fr);
+    gap: 12px;
+    padding: 8px 0;
+    overflow-wrap: anywhere;
+  }
+
+  .activity-span {
+    min-width: 0;
+    white-space: normal;
+  }
+
   .roster-table td::before,
   .deaths-table td::before,
   .completionist-table td::before,
@@ -986,6 +1387,16 @@ code {
   }
 
   .real-raid-boss-table td::before {
+    content: attr(data-label);
+    color: #8f9baa;
+    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+
+  .touching-grass-table td::before {
     content: attr(data-label);
     color: #8f9baa;
     font-family: Inter, ui-sans-serif, system-ui, sans-serif;

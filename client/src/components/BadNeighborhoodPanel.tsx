@@ -37,7 +37,7 @@ function BadNeighborhoodTable({ entries }: { entries: BadNeighborhoodEntry[] }) 
   );
 }
 
-export function BadNeighborhoodPanel() {
+export function BadNeighborhoodPanel({ showHeading = true }: { showHeading?: boolean } = {}) {
   const { population } = useStatsPopulationContext();
   const leaderboardQuery = useQuery({
     queryKey: statsPopulationQueryKey("bad-neighborhood", population),
@@ -48,9 +48,11 @@ export function BadNeighborhoodPanel() {
   });
   const leaderboard = leaderboardQuery.data;
   return (
-    <section className="panel bad-neighborhood-panel" aria-labelledby="badNeighborhoodHeading"
+    <section className="panel bad-neighborhood-panel"
+      aria-labelledby={showHeading ? "badNeighborhoodHeading" : undefined}
+      aria-label={showHeading ? undefined : "Bad Neighborhood statistics"}
       aria-busy={leaderboardQuery.isPending}>
-      <h2 id="badNeighborhoodHeading">Bad Neighborhood</h2>
+      {showHeading && <h2 id="badNeighborhoodHeading">Bad Neighborhood</h2>}
       {leaderboard && <p className="deaths-scope">
         Complete locations since{" "}
         <time dateTime={leaderboard.coverage.comprehensiveSince}>

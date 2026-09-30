@@ -168,7 +168,7 @@ function WinnerSummary({ entries }: { entries: QuestCompletionLeaderboardEntry[]
   </p>;
 }
 
-export function CompletionistPanel() {
+export function CompletionistPanel({ showHeading = true }: { showHeading?: boolean } = {}) {
   const { population } = useStatsPopulationContext();
   const leaderboardQuery = useQuery({
     queryKey: statsPopulationQueryKey("quest-completions", population),
@@ -179,12 +179,15 @@ export function CompletionistPanel() {
   });
   const leaderboard = leaderboardQuery.data;
   return (
-    <section className="panel award-panel completionist-panel" aria-labelledby="completionistHeading"
+    <section className="panel award-panel completionist-panel"
+      aria-labelledby={showHeading ? "completionistHeading" : undefined}
+      aria-label={showHeading ? undefined : "Completionist statistics"}
       aria-busy={leaderboardQuery.isPending}>
-      <div className="award-heading">
+      {showHeading && <div className="award-heading">
         <span className="award-icon" aria-hidden="true">📜</span>
         <div><h3 id="completionistHeading">Completionist</h3><p>Most quests completed</p></div>
-      </div>
+      </div>}
+      {!showHeading && <p className="award-detail"><strong>Most quests completed.</strong></p>}
       <p className="award-detail">
         {leaderboard?.coverage.firstRecordedAt
           ? <>
