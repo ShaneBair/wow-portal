@@ -1,4 +1,4 @@
-import type { ArcaneTomeBoostConfig, CharacterLevelBoostConfig, MoneyBoostConfig, PortableHolesBoostConfig } from "./boost-config.js";
+import type { ArcaneTomeBoostConfig, CharacterLevelBoostConfig, ItemDeliveryBoostConfig, MoneyBoostConfig, PortableHolesBoostConfig } from "./boost-config.js";
 import {
   characterLevelBoostService,
   type CharacterLevelBoostService,
@@ -27,6 +27,14 @@ import {
   type PortableHolesMetadata,
   type PortableHolesSuccess
 } from "./portable-hole-boost.js";
+import {
+  itemDeliveryService,
+  type ItemDeliveryInput,
+  type ItemDeliveryMetadata,
+  type ItemDeliveryPreview,
+  type ItemDeliveryService,
+  type ItemDeliverySuccess
+} from "./item-delivery.js";
 
 export interface BoostsOverview {
   characters: BoostCharacter[];
@@ -34,6 +42,7 @@ export interface BoostsOverview {
   portableHoles: PortableHolesMetadata;
   arcaneTome: ArcaneTomeMetadata;
   characterLevel: CharacterLevelMetadata;
+  itemDelivery: ItemDeliveryMetadata;
 }
 
 export interface BoostsServiceDependencies {
@@ -41,6 +50,7 @@ export interface BoostsServiceDependencies {
   portableHoles?: PortableHoleBoostService;
   arcaneTome?: ArcaneTomeBoostService;
   characterLevel?: CharacterLevelBoostService;
+  itemDelivery?: ItemDeliveryService;
 }
 
 export class BoostsService {
@@ -48,12 +58,14 @@ export class BoostsService {
   private readonly portableHoles: PortableHoleBoostService;
   private readonly arcaneTome: ArcaneTomeBoostService;
   private readonly characterLevel: CharacterLevelBoostService;
+  private readonly itemDelivery: ItemDeliveryService;
 
   constructor(dependencies: BoostsServiceDependencies = {}) {
     this.money = dependencies.money ?? playerBoostService;
     this.portableHoles = dependencies.portableHoles ?? portableHoleBoostService;
     this.arcaneTome = dependencies.arcaneTome ?? arcaneTomeBoostService;
     this.characterLevel = dependencies.characterLevel ?? characterLevelBoostService;
+    this.itemDelivery = dependencies.itemDelivery ?? itemDeliveryService;
   }
 
   readMoneyConfig(): MoneyBoostConfig {
@@ -72,14 +84,19 @@ export class BoostsService {
     return this.characterLevel.readConfig();
   }
 
+  readItemDeliveryConfig(): ItemDeliveryBoostConfig {
+    return this.itemDelivery.readConfig();
+  }
+
   async getOverview(accountId: number): Promise<BoostsOverview> {
-    const [moneyOverview, portableHoles, arcaneTome, characterLevel] = await Promise.all([
+    const [moneyOverview, portableHoles, arcaneTome, characterLevel, itemDelivery] = await Promise.all([
       this.money.getOverview(accountId),
       this.portableHoles.getMetadata(accountId),
       this.arcaneTome.getMetadata(accountId),
-      this.characterLevel.getMetadata(accountId)
+      this.characterLevel.getMetadata(accountId),
+      this.itemDelivery.getMetadata(accountId)
     ]);
-    return { ...moneyOverview, portableHoles, arcaneTome, characterLevel };
+    return { ...moneyOverview, portableHoles, arcaneTome, characterLevel, itemDelivery };
   }
 
   requestMoney(accountId: number, input: MoneyBoostInput): Promise<MoneyBoostSuccess> {
@@ -99,6 +116,14 @@ export class BoostsService {
 
   requestCharacterLevel(accountId: number, input: CharacterLevelInput): Promise<CharacterLevelSuccess> {
     return this.characterLevel.requestCharacterLevel(accountId, input);
+  }
+
+  lookupItem(itemId: number): Promise<ItemDeliveryPreview | undefined> {
+    return this.itemDelivery.lookupItem(itemId);
+  }
+
+  requestItemDelivery(accountId: number, input: ItemDeliveryInput): Promise<ItemDeliverySuccess> {
+    return this.itemDelivery.requestItem(accountId, input);
   }
 }
 

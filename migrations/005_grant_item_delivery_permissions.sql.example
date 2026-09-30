@@ -1,0 +1,18 @@
+-- Item Delivery Service least-privilege grants.
+--
+-- Replace all four placeholders with the same deployed schema and account
+-- identity used by the portal's PORTAL_* database settings, then run this as
+-- a database administrator after 005_create_item_delivery_requests.sql.
+-- Keep the account host scope as narrow as the existing portal account.
+
+GRANT SELECT, INSERT, UPDATE
+ON `PORTAL_STATE_DATABASE`.`item_delivery_requests`
+TO 'PORTAL_DB_USER'@'PORTAL_DB_ACCOUNT_HOST';
+
+GRANT SELECT (`entry`, `name`, `Quality`, `stackable`, `maxcount`)
+ON `PORTAL_WORLD_DATABASE`.`item_template`
+TO 'PORTAL_DB_USER'@'PORTAL_DB_ACCOUNT_HOST';
+
+-- The feature reuses the existing character-ownership and mail-reconciliation
+-- reads documented in migrations/README.md. It needs no AzerothCore table
+-- writes and no broader world-table access.

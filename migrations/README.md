@@ -2,8 +2,14 @@
 
 Run `001_create_money_boost_requests.sql`, `002_create_portable_hole_boost_requests.sql`,
 `003_create_arcane_tome_boost_requests.sql`, and then
-`004_create_character_level_boost_requests.sql` while connected to the schema named by
+`004_create_character_level_boost_requests.sql`, and then
+`005_create_item_delivery_requests.sql` while connected to the schema named by
 `PORTAL_STATE_DATABASE`. The portal process does not create schemas, tables, users, or grants.
+
+For Item Delivery Service, copy `005_grant_item_delivery_permissions.sql.example`, replace its
+schema/account placeholders with the deployed `PORTAL_*` values and the existing database-account
+host scope, and run it as a database administrator after migration `005`. Do not guess or broaden
+the account host scope; reuse the exact scope already assigned to the portal database account.
 
 Grant the application account only:
 
@@ -11,13 +17,16 @@ Grant the application account only:
 - `SELECT`, `INSERT`, and `UPDATE` on `portable_hole_boost_requests` in the portal-state schema;
 - `SELECT`, `INSERT`, and `UPDATE` on `arcane_tome_boost_requests` in the portal-state schema;
 - `SELECT`, `INSERT`, and `UPDATE` on `character_level_boost_requests` in the portal-state schema;
+- `SELECT`, `INSERT`, and `UPDATE` on `item_delivery_requests` in the portal-state schema;
 - column-level `SELECT` for `guid`, `account`, `name`, `level`, `race`, `class`, and
   `deleteInfos_Name` on the AzerothCore `characters` table;
 - column-level `SELECT` for `id`, `receiver`, `subject`, `body`, `has_items`, and `money` on the
   AzerothCore `mail` table;
 - column-level `SELECT` for `mail_id` and `item_guid` on the AzerothCore `mail_items` table;
 - column-level `SELECT` for `guid`, `itemEntry`, and `count` on the AzerothCore `item_instance`
-  table.
+  table;
+- column-level `SELECT` for `entry`, `name`, `Quality`, `stackable`, and `maxcount` on the
+  AzerothCore world `item_template` table.
 
 Keep its existing column-level authentication reads. The account-settings feature is the sole auth
 write exception: grant column-level `UPDATE` for only `account.salt` and `account.verifier` as
@@ -64,6 +73,16 @@ And to resolved character-level requests:
 DELETE FROM character_level_boost_requests
 WHERE created_at < TIMESTAMPADD(DAY, -90, UTC_TIMESTAMP())
   AND status IN ('applied', 'failed', 'unknown')
+ORDER BY created_at
+LIMIT 1000;
+```
+
+And to resolved item-delivery requests:
+
+```sql
+DELETE FROM item_delivery_requests
+WHERE created_at < TIMESTAMPADD(DAY, -90, UTC_TIMESTAMP())
+  AND status IN ('sent', 'failed')
 ORDER BY created_at
 LIMIT 1000;
 ```

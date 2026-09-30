@@ -69,6 +69,7 @@ export class BoostDataError extends Error {
 export type BoostFailureKind =
   | "disabled"
   | "invalid"
+  | "not-found"
   | "ownership"
   | "conflict"
   | "processing"

@@ -38,12 +38,25 @@ import {
 } from "../services/character-level-boost.js";
 import type { CharacterLevelBoostConfig } from "../services/boost-config.js";
 import type { PortalSessionStore } from "../services/portal-sessions.js";
+import {
+  parseItemDeliveryInput,
+  isCanonicalItemDeliveryJson,
+  parseItemId,
+  type ItemDeliveryInput,
+  type ItemDeliveryPreview,
+  type ItemDeliverySuccess
+} from "../services/item-delivery.js";
+import type { ItemDeliveryBoostConfig } from "../services/boost-config.js";
+import { itemLookupLimiter, type ItemLookupLimiter } from "../services/item-lookup-limiter.js";
+import { getRawJsonBody } from "../services/raw-json-body.js";
 
 const UNAVAILABLE_MESSAGE = "Boosts are temporarily unavailable.";
 const INVALID_REQUEST_MESSAGE = "Enter a valid character, request ID, and whole-gold amount.";
 const INVALID_PORTABLE_HOLES_REQUEST_MESSAGE = "Enter a valid character and request ID.";
 const RATE_LIMIT_MESSAGE = "Too many boost submissions. Try again later.";
 const INVALID_CHARACTER_LEVEL_REQUEST_MESSAGE = "Enter a valid character, request ID, and target level.";
+const INVALID_ITEM_DELIVERY_REQUEST_MESSAGE = "Enter a valid character, request ID, item ID, and quantity.";
+const LOOKUP_RATE_LIMIT_MESSAGE = "Too many item lookups. Try again later.";
 
 export interface BoostsRouterDependencies {
   service?: {
@@ -51,13 +64,17 @@ export interface BoostsRouterDependencies {
     readPortableHolesConfig(): PortableHolesBoostConfig;
     readArcaneTomeConfig(): ArcaneTomeBoostConfig;
     readCharacterLevelConfig(): CharacterLevelBoostConfig;
+    readItemDeliveryConfig(): ItemDeliveryBoostConfig;
     getOverview(accountId: number): Promise<BoostsOverview>;
     requestMoney(accountId: number, input: MoneyBoostInput): Promise<MoneyBoostSuccess>;
     requestPortableHoles(accountId: number, input: PortableHolesInput): Promise<PortableHolesSuccess>;
     requestArcaneTome(accountId: number, input: ArcaneTomeInput): Promise<ArcaneTomeSuccess>;
     requestCharacterLevel(accountId: number, input: CharacterLevelInput): Promise<CharacterLevelSuccess>;
+    lookupItem(itemId: number): Promise<ItemDeliveryPreview | undefined>;
+    requestItemDelivery(accountId: number, input: ItemDeliveryInput): Promise<ItemDeliverySuccess>;
   };
   limiter?: BoostMutationLimiter;
+  lookupLimiter?: ItemLookupLimiter;
   sessions?: PortalSessionStore;
   getSecurityConfig?: () => PortalHttpSecurityConfig;
 }
@@ -68,6 +85,12 @@ function publicRequestFailure(
 ): { status: number; body: object } {
   if (error.kind === "ownership") {
     return { status: 403, body: { error: error.message } };
+  }
+  if (error.kind === "invalid") {
+    return { status: 400, body: { error: error.message } };
+  }
+  if (error.kind === "not-found") {
+    return { status: 404, body: { error: error.message } };
   }
   if (["conflict", "processing", "limit"].includes(error.kind)) {
     return {
@@ -93,6 +116,7 @@ export function createBoostsRouter(dependencies: BoostsRouterDependencies = {}):
   const router = Router();
   const service = dependencies.service ?? boostsService;
   const limiter = dependencies.limiter ?? boostMutationLimiter;
+  const lookupLimiter = dependencies.lookupLimiter ?? itemLookupLimiter;
   const authDependencies = {
     sessions: dependencies.sessions,
     getSecurityConfig: dependencies.getSecurityConfig
@@ -112,6 +136,38 @@ export function createBoostsRouter(dependencies: BoostsRouterDependencies = {}):
     } catch (error) {
       const errorKind = error instanceof Error ? error.name : "UnknownError";
       console.error(`Boost overview dependency failed (${errorKind}).`);
+      return response.status(503).json({ error: UNAVAILABLE_MESSAGE });
+    }
+  });
+
+  router.get("/api/boosts/items/:itemId", requireSession, async (request, response) => {
+    const itemId = parseItemId(request.params.itemId);
+    if (itemId === undefined) return response.status(400).json({ error: "Enter a valid item ID." });
+    let config;
+    try {
+      config = service.readItemDeliveryConfig();
+    } catch (error) {
+      const errorKind = error instanceof Error ? error.name : "UnknownError";
+      console.error(`Item delivery configuration failed (${errorKind}).`);
+      return response.status(503).json({ error: UNAVAILABLE_MESSAGE });
+    }
+    if (!config.enabled) return response.status(503).json({ error: "This boost is currently unavailable." });
+    const locals = response.locals as PortalAuthLocals;
+    if (!lookupLimiter.consume(`${locals.authenticatedPrincipal.accountId}:${request.ip ?? "unknown"}`)) {
+      return response.status(429).json({ error: LOOKUP_RATE_LIMIT_MESSAGE });
+    }
+    try {
+      const item = await service.lookupItem(itemId);
+      return item
+        ? response.json({ item })
+        : response.status(404).json({ error: "That item could not be found." });
+    } catch (error) {
+      if (error instanceof BoostRequestError) {
+        const failure = publicRequestFailure(error, UNAVAILABLE_MESSAGE);
+        return response.status(failure.status).json(failure.body);
+      }
+      const errorKind = error instanceof Error ? error.name : "UnknownError";
+      console.error(`Item lookup dependency failed (${errorKind}).`);
       return response.status(503).json({ error: UNAVAILABLE_MESSAGE });
     }
   });
@@ -270,6 +326,43 @@ export function createBoostsRouter(dependencies: BoostsRouterDependencies = {}):
       }
       const errorKind = error instanceof Error ? error.name : "UnknownError";
       console.error(`Character level boost dependency failed (${errorKind}).`);
+      return response.status(503).json({ error: UNAVAILABLE_MESSAGE });
+    }
+  });
+
+  router.post("/api/boosts/item-delivery", requireMutation, async (request, response) => {
+    if (!request.is("application/json")) {
+      return response.status(400).json({ error: INVALID_ITEM_DELIVERY_REQUEST_MESSAGE });
+    }
+    if (!isCanonicalItemDeliveryJson(getRawJsonBody(request))) {
+      return response.status(400).json({ error: INVALID_ITEM_DELIVERY_REQUEST_MESSAGE });
+    }
+    let config;
+    try {
+      config = service.readItemDeliveryConfig();
+    } catch (error) {
+      const errorKind = error instanceof Error ? error.name : "UnknownError";
+      console.error(`Item delivery configuration failed (${errorKind}).`);
+      return response.status(503).json({ error: UNAVAILABLE_MESSAGE });
+    }
+    const input = parseItemDeliveryInput(request.body, config);
+    if (!input) return response.status(400).json({ error: INVALID_ITEM_DELIVERY_REQUEST_MESSAGE });
+    if (!config.enabled) return response.status(503).json({ error: "This boost is currently unavailable." });
+    if (!limiter.consume(request.ip ?? "unknown")) {
+      return response.status(429).json({ error: RATE_LIMIT_MESSAGE });
+    }
+    const locals = response.locals as PortalAuthLocals;
+    try {
+      const result = await service.requestItemDelivery(locals.authenticatedPrincipal.accountId, input);
+      const { created, ...body } = result;
+      return response.status(created ? 201 : 200).json(body);
+    } catch (error) {
+      if (error instanceof BoostRequestError) {
+        const failure = publicRequestFailure(error, "Items could not be sent. Try again later.");
+        return response.status(failure.status).json(failure.body);
+      }
+      const errorKind = error instanceof Error ? error.name : "UnknownError";
+      console.error(`Item delivery dependency failed (${errorKind}).`);
       return response.status(503).json({ error: UNAVAILABLE_MESSAGE });
     }
   });

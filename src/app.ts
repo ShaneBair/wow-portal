@@ -15,6 +15,7 @@ import statsTouchingGrassRouter from "./routes/stats-touching-grass.js";
 import statsPublicEnemyRouter from "./routes/stats-public-enemy.js";
 import statsBotWranglerRouter from "./routes/stats-bot-wrangler.js";
 import statsVendorTrashMagnateRouter from "./routes/stats-vendor-trash-magnate.js";
+import { captureRawJsonBody } from "./services/raw-json-body.js";
 import rosterRouter from "./routes/roster.js";
 import statusRouter from "./routes/status.js";
 
@@ -37,7 +38,7 @@ export function createApp(options: CreateAppOptions = {}): Express {
     next();
   });
 
-  app.use(express.json({ limit: "16kb" }));
+  app.use(express.json({ limit: "16kb", verify: captureRawJsonBody }));
   app.use(express.urlencoded({ extended: false, limit: "16kb" }));
   const rejectInvalidBody: ErrorRequestHandler = (error, request, response, next) => {
     const type = typeof error === "object" && error !== null && "type" in error

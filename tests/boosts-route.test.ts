@@ -9,7 +9,10 @@ import { BoostRequestError, type MoneyBoostInput } from "../src/services/player-
 import type { PortableHolesInput } from "../src/services/portable-hole-boost.js";
 import type { ArcaneTomeInput } from "../src/services/arcane-tome-boost.js";
 import type { CharacterLevelInput } from "../src/services/character-level-boost.js";
+import type { ItemDeliveryInput, ItemDeliveryPreview } from "../src/services/item-delivery.js";
 import { PortalSessionStore } from "../src/services/portal-sessions.js";
+import { ItemLookupLimiter } from "../src/services/item-lookup-limiter.js";
+import { captureRawJsonBody } from "../src/services/raw-json-body.js";
 
 const origin = "http://127.0.0.1:5173";
 const requestId = "0d6202eb-15c0-4e62-9cc2-f7697dd5866f";
@@ -46,6 +49,13 @@ const characterLevel = {
   maximumLevel: 80 as const,
   xpWillReset: true as const
 };
+const itemDelivery = {
+  enabled: true,
+  name: "Item Delivery Service" as const,
+  defaultQuantity: 1 as const,
+  maximumQuantity: 200,
+  deliveryMethod: "mail" as const
+};
 
 async function listen(server: Server): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -72,12 +82,14 @@ interface TestService {
   readPortableHolesConfig(): { enabled: boolean };
   readArcaneTomeConfig(): { enabled: boolean };
   readCharacterLevelConfig(): { enabled: boolean };
+  readItemDeliveryConfig(): { enabled: boolean; maximumQuantity: number };
   getOverview(accountId: number): Promise<{
     characters: Array<{ id: string; name: string; level: number; race: string; class: string }>;
     money: typeof limits;
     portableHoles: typeof portableHoles;
     arcaneTome: typeof arcaneTome;
     characterLevel: typeof characterLevel;
+    itemDelivery: typeof itemDelivery;
   }>;
   requestMoney(accountId: number, input: MoneyBoostInput): Promise<{
     requestId: string;
@@ -104,12 +116,21 @@ interface TestService {
     message: string;
     created: boolean;
   }>;
+  lookupItem(itemId: number): Promise<ItemDeliveryPreview | undefined>;
+  requestItemDelivery(accountId: number, input: ItemDeliveryInput): Promise<{
+    requestId: string;
+    status: "sent";
+    item: { id: number; name: string; quantity: number };
+    message: string;
+    created: boolean;
+  }>;
 }
 
 async function withBoostServer<T>(
   run: (baseUrl: string, authorization: { cookie: string; csrfToken: string }) => Promise<T>,
   serviceOverrides: Partial<TestService> = {},
-  limiter = new BoostMutationLimiter()
+  limiter = new BoostMutationLimiter(),
+  lookupLimiter = new ItemLookupLimiter()
 ): Promise<T> {
   let randomValue = 1;
   const sessions = new PortalSessionStore(Date.now, (size) => Buffer.alloc(size, randomValue++));
@@ -119,6 +140,7 @@ async function withBoostServer<T>(
     readPortableHolesConfig: () => ({ enabled: true }),
     readArcaneTomeConfig: () => ({ enabled: true }),
     readCharacterLevelConfig: () => ({ enabled: true }),
+    readItemDeliveryConfig: () => ({ enabled: true, maximumQuantity: 200 }),
     getOverview: async (accountId) => {
       assert.equal(accountId, 7);
       return {
@@ -126,7 +148,8 @@ async function withBoostServer<T>(
         money: limits,
         portableHoles,
         arcaneTome,
-        characterLevel
+        characterLevel,
+        itemDelivery
       };
     },
     requestMoney: async (accountId, input) => ({
@@ -154,14 +177,25 @@ async function withBoostServer<T>(
       message: `Thalgrim is now level ${input.targetLevel}.`,
       created: accountId === 7
     }),
+    lookupItem: async (itemId) => itemId === 41599
+      ? { id: 41599, name: "Frostweave Bag", quality: 2, maximumQuantity: 12 }
+      : undefined,
+    requestItemDelivery: async (accountId, input) => ({
+      requestId: input.requestId,
+      status: "sent",
+      item: { id: input.itemId, name: "Frostweave Bag", quantity: input.quantity },
+      message: `${input.quantity} Frostweave Bags were sent to Thalgrim by in-game mail.`,
+      created: accountId === 7
+    }),
     ...serviceOverrides
   };
   const app = express();
   app.set("trust proxy", 1);
-  app.use(express.json({ limit: "16kb" }));
+  app.use(express.json({ limit: "16kb", verify: captureRawJsonBody }));
   app.use(createBoostsRouter({
     service,
     limiter,
+    lookupLimiter,
     sessions,
     getSecurityConfig: () => security
   }));
@@ -250,6 +284,22 @@ function postCharacterLevel(
   });
 }
 
+function postItemDelivery(
+  baseUrl: string,
+  authorization: { cookie: string; csrfToken: string },
+  overrides: RequestInit = {}
+): Promise<Response> {
+  return fetch(`${baseUrl}/api/boosts/item-delivery`, {
+    method: "POST",
+    ...overrides,
+    headers: {
+      "Content-Type": "application/json", Origin: origin, Cookie: authorization.cookie,
+      "X-CSRF-Token": authorization.csrfToken, ...overrides.headers
+    },
+    body: overrides.body ?? JSON.stringify({ requestId, characterId: "42", itemId: 41599, quantity: 4 })
+  });
+}
+
 test("protects and returns the no-store character overview", async () => {
   await withBoostServer(async (baseUrl, authorization) => {
     const anonymous = await fetch(`${baseUrl}/api/boosts`);
@@ -266,7 +316,8 @@ test("protects and returns the no-store character overview", async () => {
       money: limits,
       portableHoles,
       arcaneTome,
-      characterLevel
+      characterLevel,
+      itemDelivery
     });
   });
 });
@@ -346,15 +397,85 @@ test("maps ownership, replay conflict, and unknown delivery without leaking inte
 
 test("shares five boost submissions per client minute across every boost endpoint", async () => {
   await withBoostServer(async (baseUrl, authorization) => {
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      assert.equal((await postMoney(baseUrl, authorization)).status, 201);
-    }
+    assert.equal((await postMoney(baseUrl, authorization)).status, 201);
     assert.equal((await postPortableHoles(baseUrl, authorization)).status, 201);
     assert.equal((await postArcaneTome(baseUrl, authorization)).status, 201);
     assert.equal((await postCharacterLevel(baseUrl, authorization)).status, 201);
-    const limited = await postCharacterLevel(baseUrl, authorization);
+    assert.equal((await postItemDelivery(baseUrl, authorization)).status, 201);
+    const limited = await postItemDelivery(baseUrl, authorization);
     assert.equal(limited.status, 429);
     assert.deepEqual(await limited.json(), { error: "Too many boost submissions. Try again later." });
+  });
+});
+
+test("protects, limits, and strips item lookup responses", async () => {
+  await withBoostServer(async (baseUrl, authorization) => {
+    assert.equal((await fetch(`${baseUrl}/api/boosts/items/41599`)).status, 401);
+    assert.equal((await fetch(`${baseUrl}/api/boosts/items/041599`, {
+      headers: { Cookie: authorization.cookie }
+    })).status, 400);
+    const response = await fetch(`${baseUrl}/api/boosts/items/41599`, {
+      headers: { Cookie: authorization.cookie }
+    });
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.deepEqual(await response.json(), {
+      item: { id: 41599, name: "Frostweave Bag", quality: 2, maximumQuantity: 12 }
+    });
+    const missing = await fetch(`${baseUrl}/api/boosts/items/999`, {
+      headers: { Cookie: authorization.cookie }
+    });
+    assert.equal(missing.status, 404);
+    assert.deepEqual(await missing.json(), { error: "That item could not be found." });
+    for (let attempt = 2; attempt < 30; attempt += 1) {
+      assert.equal((await fetch(`${baseUrl}/api/boosts/items/41599`, {
+        headers: { Cookie: authorization.cookie }
+      })).status, 200);
+    }
+    const limited = await fetch(`${baseUrl}/api/boosts/items/41599`, {
+      headers: { Cookie: authorization.cookie }
+    });
+    assert.equal(limited.status, 429);
+    assert.deepEqual(await limited.json(), { error: "Too many item lookups. Try again later." });
+  });
+});
+
+test("validates and sends the exact item-delivery request contract", async () => {
+  const received: Array<[number, ItemDeliveryInput]> = [];
+  await withBoostServer(async (baseUrl, authorization) => {
+    for (const body of [
+      { requestId, characterId: "42", itemId: "41599", quantity: 4 },
+      { requestId, characterId: "42", itemId: 41599, quantity: "4" },
+      { requestId, characterId: "42", itemId: 41599, quantity: 4.5 },
+      { requestId, characterId: "42", itemId: 41599, quantity: 4, subject: "mine" }
+    ]) assert.equal((await postItemDelivery(baseUrl, authorization, { body: JSON.stringify(body) })).status, 400);
+    for (const body of [
+      `{"requestId":"${requestId}","characterId":"42","itemId":4.1599e4,"quantity":4}`,
+      `{"requestId":"${requestId}","characterId":"42","itemId":41599,"quantity":4.0}`,
+      `{"requestId":"${requestId}","characterId":"42","itemId":41599,"itemId":41599,"quantity":4}`
+    ]) assert.equal((await postItemDelivery(baseUrl, authorization, { body })).status, 400);
+
+    const response = await postItemDelivery(baseUrl, authorization);
+    assert.equal(response.status, 201);
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.deepEqual(await response.json(), {
+      requestId,
+      status: "sent",
+      item: { id: 41599, name: "Frostweave Bag", quantity: 4 },
+      message: "4 Frostweave Bags were sent to Thalgrim by in-game mail."
+    });
+    assert.deepEqual(received, [[7, { requestId, characterId: "42", itemId: 41599, quantity: 4 }]]);
+  }, {
+    requestItemDelivery: async (accountId, input) => {
+      received.push([accountId, input]);
+      return {
+        requestId: input.requestId,
+        status: "sent",
+        item: { id: input.itemId, name: "Frostweave Bag", quantity: input.quantity },
+        message: "4 Frostweave Bags were sent to Thalgrim by in-game mail.",
+        created: true
+      };
+    }
   });
 });
 

@@ -43,6 +43,13 @@ const overview = {
     name: "Level Up, Buttercup",
     maximumLevel: 80,
     xpWillReset: true
+  },
+  itemDelivery: {
+    enabled: true,
+    name: "Item Delivery Service",
+    defaultQuantity: 1,
+    maximumQuantity: 200,
+    deliveryMethod: "mail"
   }
 };
 
@@ -91,6 +98,8 @@ function standardFetch(options: {
   portableHoles?: (init?: RequestInit) => Promise<Response>;
   arcaneTome?: (init?: RequestInit) => Promise<Response>;
   characterLevel?: (init?: RequestInit) => Promise<Response>;
+  itemLookup?: () => Promise<Response>;
+  itemDelivery?: (init?: RequestInit) => Promise<Response>;
 } = {}): typeof fetch {
   return (input, init) => {
     const path = pathOf(input);
@@ -127,6 +136,19 @@ function standardFetch(options: {
         status: "applied",
         character: { id: "77", name: "Zaria", level: 60 },
         message: "Zaria is now level 60."
+      }, 201));
+    }
+    if (path === "/api/boosts/items/41599") {
+      return options.itemLookup?.() ?? Promise.resolve(jsonResponse({
+        item: { id: 41599, name: "Frostweave Bag", quality: 2, maximumQuantity: 12 }
+      }));
+    }
+    if (path === "/api/boosts/item-delivery") {
+      return options.itemDelivery?.(init) ?? Promise.resolve(jsonResponse({
+        requestId,
+        status: "sent",
+        item: { id: 41599, name: "Frostweave Bag", quantity: 4 },
+        message: "4 Frostweave Bags were sent to Thalgrim by in-game mail."
       }, 201));
     }
     return Promise.resolve(jsonResponse({ error: "Not found." }, 404));
@@ -356,6 +378,107 @@ describe("Boosts page", () => {
     expect(screen.queryByRole("heading", { name: "Confirm bag delivery" })).toBeNull();
   });
 
+  it("looks up an item, applies its maximum, confirms exact details, and sends it", async () => {
+    let deliveryInit: RequestInit | undefined;
+    renderBoosts(standardFetch({
+      itemDelivery: (init) => {
+        deliveryInit = init;
+        return Promise.resolve(jsonResponse({
+          requestId,
+          status: "sent",
+          item: { id: 41599, name: "Frostweave Bag", quantity: 4 },
+          message: "4 Frostweave Bags were sent to Thalgrim by in-game mail."
+        }, 201));
+      }
+    }));
+    const user = userEvent.setup();
+    const itemId = await screen.findByLabelText<HTMLInputElement>("Item ID");
+    await waitFor(() => expect(screen.getByLabelText<HTMLSelectElement>("Choose a character").value).toBe("42"));
+    await waitFor(() => expect(itemId.disabled).toBe(false));
+    const quantity = screen.getByLabelText<HTMLInputElement>("Quantity");
+    expect(quantity.value).toBe("1");
+    expect(quantity.disabled).toBe(true);
+
+    await user.type(itemId, "41599");
+    expect(await screen.findByText("Frostweave Bag")).toBeTruthy();
+    expect(screen.getByText("Maximum 12 for this item.")).toBeTruthy();
+    expect(quantity.disabled).toBe(false);
+    await user.clear(quantity);
+    await user.type(quantity, "4");
+    const send = screen.getByRole<HTMLButtonElement>("button", { name: "Send item" });
+    expect(send.disabled).toBe(false);
+    await user.click(send);
+    expect(screen.getByText("Send 4 × Frostweave Bag (item 41599) to Thalgrim by in-game mail?")).toBeTruthy();
+    const confirm = screen.getByRole("button", { name: "Confirm item delivery" });
+    expect(document.activeElement).not.toBe(confirm);
+    await user.click(confirm);
+
+    expect(await screen.findByText("4 Frostweave Bags were sent to Thalgrim by in-game mail.")).toBeTruthy();
+    expect(new Headers(deliveryInit?.headers).get("X-CSRF-Token")).toBe(session.csrfToken);
+    expect(JSON.parse(String(deliveryInit?.body))).toEqual({
+      requestId, characterId: "42", itemId: 41599, quantity: 4
+    });
+  });
+
+  it("validates digits literally and clears stale previews when the item changes", async () => {
+    const { fetchMock } = renderBoosts(standardFetch());
+    const user = userEvent.setup();
+    const itemId = await screen.findByLabelText<HTMLInputElement>("Item ID");
+    await waitFor(() => expect(screen.getByLabelText<HTMLSelectElement>("Choose a character").value).toBe("42"));
+    await waitFor(() => expect(itemId.disabled).toBe(false));
+    await user.type(itemId, "1e3");
+    await user.tab();
+    expect(screen.getByText("Enter a whole item ID using digits only.")).toBeTruthy();
+    expect(fetchMock.mock.calls.filter(([inputValue]) => pathOf(inputValue).startsWith("/api/boosts/items/"))).toHaveLength(0);
+
+    await user.clear(itemId);
+    await user.type(itemId, "41599");
+    expect(await screen.findByText("Frostweave Bag")).toBeTruthy();
+    const quantity = screen.getByLabelText<HTMLInputElement>("Quantity");
+    await user.clear(quantity);
+    await user.type(quantity, "13");
+    await user.tab();
+    expect(screen.getByText("Enter a whole quantity from 1 through 12.")).toBeTruthy();
+
+    await user.clear(itemId);
+    await user.type(itemId, "999");
+    expect(quantity.value).toBe("1");
+    expect(screen.queryByText(/Item found:/u)).toBeNull();
+  });
+
+  it("shows lookup failures and preserves an unconfirmed item request across character changes", async () => {
+    let lookupCalls = 0;
+    renderBoosts(standardFetch({
+      itemLookup: () => {
+        lookupCalls += 1;
+        return Promise.resolve(lookupCalls === 1
+          ? jsonResponse({ error: "That item could not be found." }, 404)
+          : jsonResponse({ item: { id: 41599, name: "Frostweave Bag", quality: 2, maximumQuantity: 12 } }));
+      },
+      itemDelivery: () => Promise.resolve(jsonResponse({
+        requestId,
+        status: "unknown",
+        error: "Delivery could not be confirmed. Do not send it again; give this request ID to an administrator."
+      }, 503))
+    }));
+    const user = userEvent.setup();
+    const itemId = await screen.findByLabelText<HTMLInputElement>("Item ID");
+    await waitFor(() => expect(screen.getByLabelText<HTMLSelectElement>("Choose a character").value).toBe("42"));
+    await waitFor(() => expect(itemId.disabled).toBe(false));
+    await user.type(itemId, "41599");
+    expect(await screen.findByText("That item could not be found.")).toBeTruthy();
+    await user.clear(itemId);
+    await user.type(itemId, "41599");
+    expect(await screen.findByText("Frostweave Bag")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Send item" }));
+    await user.click(screen.getByRole("button", { name: "Confirm item delivery" }));
+    expect(await screen.findByText(/Do not send it again/u)).toBeTruthy();
+    expect(screen.getByText(requestId)).toBeTruthy();
+    await user.selectOptions(screen.getByLabelText("Choose a character"), "77");
+    expect(screen.getByText(/Do not send it again/u)).toBeTruthy();
+    expect(screen.getByLabelText<HTMLInputElement>("Item ID").disabled).toBe(true);
+  });
+
   it("shows and locks an unconfirmed request with its request ID", async () => {
     renderBoosts(standardFetch({
       money: () => Promise.resolve(jsonResponse({
@@ -384,12 +507,13 @@ describe("Boosts page", () => {
         money: { ...overview.money, enabled: false },
         portableHoles: { ...overview.portableHoles, enabled: false },
         arcaneTome: { ...overview.arcaneTome, enabled: false },
-        characterLevel: { ...overview.characterLevel, enabled: false }
+        characterLevel: { ...overview.characterLevel, enabled: false },
+        itemDelivery: { ...overview.itemDelivery, enabled: false }
       }))
     }));
     expect(await screen.findByText("This account does not have any characters yet.")).toBeTruthy();
     expect(screen.getByText("Free Money is currently disabled.")).toBeTruthy();
-    expect(screen.getAllByText("This boost is currently unavailable.")).toHaveLength(3);
+    expect(screen.getAllByText("This boost is currently unavailable.")).toHaveLength(4);
     empty.unmount();
 
     renderBoosts(standardFetch({
@@ -422,6 +546,22 @@ describe("Boosts page", () => {
     await waitFor(() => expect(send.disabled).toBe(false));
     await user.click(send);
     await user.click(screen.getByRole("button", { name: "Confirm" }));
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Log in" })).toBeTruthy();
+    expect(router.state.location.pathname).toBe("/login");
+  });
+
+  it("returns to Login when the session expires during item delivery", async () => {
+    const { router } = renderBoosts(standardFetch({
+      itemDelivery: () => Promise.resolve(jsonResponse({ error: "Log in to continue." }, 401))
+    }));
+    const user = userEvent.setup();
+    const itemId = await screen.findByLabelText<HTMLInputElement>("Item ID");
+    await waitFor(() => expect(screen.getByLabelText<HTMLSelectElement>("Choose a character").value).toBe("42"));
+    await user.type(itemId, "41599");
+    expect(await screen.findByText("Frostweave Bag")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Send item" }));
+    await user.click(screen.getByRole("button", { name: "Confirm item delivery" }));
 
     expect(await screen.findByRole("heading", { level: 1, name: "Log in" })).toBeTruthy();
     expect(router.state.location.pathname).toBe("/login");

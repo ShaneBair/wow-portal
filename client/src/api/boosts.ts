@@ -40,12 +40,28 @@ export interface CharacterLevelBoostMetadata {
   xpWillReset: true;
 }
 
+export interface ItemDeliveryBoostMetadata {
+  enabled: boolean;
+  name: "Item Delivery Service";
+  defaultQuantity: 1;
+  maximumQuantity: number;
+  deliveryMethod: "mail";
+}
+
+export interface ItemDeliveryPreview {
+  id: number;
+  name: string;
+  quality: number;
+  maximumQuantity: number;
+}
+
 export interface BoostOverview {
   characters: BoostCharacter[];
   money: MoneyBoostLimits;
   portableHoles: PortableHolesBoostMetadata;
   arcaneTome: ArcaneTomeBoostMetadata;
   characterLevel: CharacterLevelBoostMetadata;
+  itemDelivery: ItemDeliveryBoostMetadata;
 }
 
 export interface SendMoneyInput {
@@ -83,6 +99,21 @@ export interface SendCharacterLevelResult {
   requestId: string;
   status: "applied";
   character: { id: string; name: string; level: number };
+  message: string;
+}
+
+export interface SendItemDeliveryInput {
+  requestId: string;
+  characterId: string;
+  itemId: number;
+  quantity: number;
+  csrfToken: string;
+}
+
+export interface SendItemDeliveryResult {
+  requestId: string;
+  status: "sent";
+  item: { id: number; name: string; quantity: number };
   message: string;
 }
 
@@ -150,7 +181,8 @@ function parseOverview(value: unknown): BoostOverview | undefined {
     !isRecord(value.money) ||
     !isRecord(value.portableHoles) ||
     !isRecord(value.arcaneTome) ||
-    !isRecord(value.characterLevel)
+    !isRecord(value.characterLevel) ||
+    !isRecord(value.itemDelivery)
   ) {
     return undefined;
   }
@@ -159,6 +191,7 @@ function parseOverview(value: unknown): BoostOverview | undefined {
   const portableHoles = value.portableHoles;
   const arcaneTome = value.arcaneTome;
   const characterLevel = value.characterLevel;
+  const itemDelivery = value.itemDelivery;
   if (
     characters.some((character) => character === undefined) ||
     typeof money.enabled !== "boolean" ||
@@ -180,7 +213,12 @@ function parseOverview(value: unknown): BoostOverview | undefined {
     typeof characterLevel.enabled !== "boolean" ||
     characterLevel.name !== "Level Up, Buttercup" ||
     characterLevel.maximumLevel !== 80 ||
-    characterLevel.xpWillReset !== true
+    characterLevel.xpWillReset !== true ||
+    typeof itemDelivery.enabled !== "boolean" ||
+    itemDelivery.name !== "Item Delivery Service" ||
+    itemDelivery.defaultQuantity !== 1 ||
+    !isSafePositiveInteger(itemDelivery.maximumQuantity) ||
+    itemDelivery.deliveryMethod !== "mail"
   ) {
     return undefined;
   }
@@ -213,8 +251,41 @@ function parseOverview(value: unknown): BoostOverview | undefined {
       name: characterLevel.name,
       maximumLevel: characterLevel.maximumLevel,
       xpWillReset: characterLevel.xpWillReset
+    },
+    itemDelivery: {
+      enabled: itemDelivery.enabled,
+      name: itemDelivery.name,
+      defaultQuantity: itemDelivery.defaultQuantity,
+      maximumQuantity: itemDelivery.maximumQuantity,
+      deliveryMethod: itemDelivery.deliveryMethod
     }
   };
+}
+
+export async function getItemDeliveryPreview(
+  itemId: number,
+  signal?: AbortSignal
+): Promise<ItemDeliveryPreview> {
+  const response = await fetch(`/api/boosts/items/${itemId}`, {
+    cache: "no-store",
+    credentials: "same-origin",
+    signal
+  });
+  const body = await readJson(response);
+  if (!response.ok) {
+    throw new BoostApiError(readPublicError(body, "Item lookup is temporarily unavailable."), response.status);
+  }
+  if (!isRecord(body) || !isRecord(body.item)) {
+    throw new BoostApiError("Item lookup is temporarily unavailable.", response.status);
+  }
+  const item = body.item;
+  if (
+    !isSafePositiveInteger(item.id) || typeof item.name !== "string" ||
+    Array.from(item.name).length < 1 || Array.from(item.name).length > 255 ||
+    typeof item.quality !== "number" || !Number.isInteger(item.quality) || item.quality < 0 || item.quality > 7 ||
+    !isSafePositiveInteger(item.maximumQuantity)
+  ) throw new BoostApiError("Item lookup is temporarily unavailable.", response.status);
+  return { id: item.id, name: item.name, quality: item.quality, maximumQuantity: item.maximumQuantity };
 }
 
 export async function getBoostOverview(signal?: AbortSignal): Promise<BoostOverview> {
@@ -435,6 +506,56 @@ export async function sendCharacterLevelBoost(
     requestId: input.requestId,
     status: "applied",
     character: { id: body.character.id, name: body.character.name, level: body.character.level },
+    message: body.message
+  };
+}
+
+export async function sendItemDelivery(
+  input: SendItemDeliveryInput
+): Promise<SendItemDeliveryResult> {
+  const unknownMessage =
+    "Delivery could not be confirmed. Do not send it again; give this request ID to an administrator.";
+  let response: Response;
+  try {
+    response = await fetch("/api/boosts/item-delivery", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": input.csrfToken },
+      credentials: "same-origin",
+      body: JSON.stringify({
+        requestId: input.requestId,
+        characterId: input.characterId,
+        itemId: input.itemId,
+        quantity: input.quantity
+      })
+    });
+  } catch {
+    throw new BoostApiError(unknownMessage, 0, "unknown", input.requestId);
+  }
+  let body: unknown;
+  try { body = await response.json() as unknown; } catch {
+    throw new BoostApiError(unknownMessage, response.status, "unknown", input.requestId);
+  }
+  if (!response.ok) {
+    const status = isRecord(body) && (body.status === "pending" || body.status === "unknown")
+      ? body.status : undefined;
+    const requestId = isRecord(body) && typeof body.requestId === "string" ? body.requestId : undefined;
+    throw new BoostApiError(
+      readPublicError(body, "Items could not be sent. Try again later."),
+      response.status,
+      status,
+      requestId
+    );
+  }
+  if (
+    !isRecord(body) || body.requestId !== input.requestId || body.status !== "sent" ||
+    !isRecord(body.item) || body.item.id !== input.itemId || body.item.quantity !== input.quantity ||
+    typeof body.item.name !== "string" || Array.from(body.item.name).length > 255 ||
+    typeof body.message !== "string" || body.message.length > 512
+  ) throw new BoostApiError(unknownMessage, response.status, "unknown", input.requestId);
+  return {
+    requestId: input.requestId,
+    status: "sent",
+    item: { id: input.itemId, name: body.item.name, quantity: input.quantity },
     message: body.message
   };
 }
