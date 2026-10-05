@@ -25,7 +25,7 @@ const config = {
   dailyGoldLimit: 20_000,
   dailyRequestLimit: 5
 };
-const characterRow = { guid: 42, name: "Thalgrim", level: 80, race: 3, class: 2 };
+const characterRow = { guid: 42, name: "Thalgrim", level: 80, race: 3, class: 2, online: 0 };
 const record: MoneyBoostRecord = {
   requestId,
   accountId: 7,
@@ -86,12 +86,12 @@ test("builds parameterized ownership queries and strips private character fields
   assert.deepEqual(query.values, [7, 42]);
 
   const mapped = mapOwnedCharacterRows([
-    { guid: 44, name: "Zed", level: 10, race: 99, class: 98, account: 999, money: 123 },
+    { guid: 44, name: "Zed", level: 10, race: 99, class: 98, online: 1, account: 999, money: 123 },
     characterRow
   ]);
   assert.deepEqual(mapped.map(({ guid: _guid, ...entry }) => entry), [
-    { id: "42", name: "Thalgrim", level: 80, race: "Dwarf", class: "Paladin" },
-    { id: "44", name: "Zed", level: 10, race: "Unknown race (99)", class: "Unknown class (98)" }
+    { id: "42", name: "Thalgrim", level: 80, race: "Dwarf", class: "Paladin", online: false },
+    { id: "44", name: "Zed", level: 10, race: "Unknown race (99)", class: "Unknown class (98)", online: true }
   ]);
   assert.equal("account" in mapped[0]!, false);
   assert.equal("money" in mapped[0]!, false);

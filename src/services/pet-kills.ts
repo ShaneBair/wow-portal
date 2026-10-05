@@ -127,7 +127,7 @@ character_kills AS (
         a.username AS accountLogin,
         SUM(e.event_type = ?) AS petKills,
         SUM(e.event_type = ?) AS directKills,
-        COUNT(*) AS totalKills
+        COUNT(*) AS recordedKillCount
     FROM ${eventsTable} e
     JOIN ${charactersTable} c
       ON c.guid = e.actor_guid
@@ -139,7 +139,7 @@ ${populationClause}${accountExclusion.clause}    GROUP BY
         e.realm_id, e.actor_guid, e.actor_is_bot,
         c.name, c.race, c.class, c.level, a.username
     HAVING petKills > 0
-    ORDER BY petKills DESC, petKills / totalKills DESC, totalKills DESC,
+    ORDER BY petKills DESC, petKills / recordedKillCount DESC, recordedKillCount DESC,
              c.name ASC, e.actor_guid ASC, e.actor_is_bot ASC
     LIMIT 25
 )
@@ -154,10 +154,10 @@ SELECT
     ck.actor_is_bot AS isBot,
     ck.petKills,
     ck.directKills,
-    ck.totalKills
+    ck.recordedKillCount AS totalKills
 FROM kill_contract kc
 LEFT JOIN character_kills ck ON TRUE
-ORDER BY ck.petKills DESC, ck.petKills / ck.totalKills DESC, ck.totalKills DESC,
+ORDER BY ck.petKills DESC, ck.petKills / ck.recordedKillCount DESC, ck.recordedKillCount DESC,
          ck.characterName ASC, ck.actor_guid ASC, ck.actor_is_bot ASC`,
     values: [
       TARGET_TYPE_CREATURE,

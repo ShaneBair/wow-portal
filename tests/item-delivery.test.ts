@@ -22,7 +22,7 @@ import { BoostRequestError } from "../src/services/player-boosts.js";
 
 const requestId = "d68083f4-44f2-4fb7-890c-1c107ef16e50";
 const config = { enabled: true, maximumQuantity: 200 };
-const characterRow = { guid: 42, name: "Thalgrim", level: 80, race: 3, class: 2 };
+const characterRow = { guid: 42, name: "Thalgrim", level: 80, race: 3, class: 2, online: 0 };
 const itemRow = { id: 41599, name: "Frostweave Bag", quality: 2, stackSize: 20, maxCount: 0 };
 const record: ItemDeliveryRecord = {
   requestId,

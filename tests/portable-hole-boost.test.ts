@@ -19,7 +19,7 @@ import { BoostRequestError } from "../src/services/player-boosts.js";
 
 const requestId = "10c2a707-1ef5-4d95-b7fe-750c4bd9bfe9";
 const secondRequestId = "6dbce848-1db7-41d7-8106-bfe090c88066";
-const characterRow = { guid: 42, name: "Thalgrim", level: 80, race: 3, class: 2 };
+const characterRow = { guid: 42, name: "Thalgrim", level: 80, race: 3, class: 2, online: 0 };
 const record: PortableHoleBoostRecord = {
   requestId,
   boostKey: "portable-holes-v1",

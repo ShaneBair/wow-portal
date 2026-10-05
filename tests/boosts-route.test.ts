@@ -10,6 +10,7 @@ import type { PortableHolesInput } from "../src/services/portable-hole-boost.js"
 import type { ArcaneTomeInput } from "../src/services/arcane-tome-boost.js";
 import type { CharacterLevelInput } from "../src/services/character-level-boost.js";
 import type { ItemDeliveryInput, ItemDeliveryPreview } from "../src/services/item-delivery.js";
+import type { FlightPathInput } from "../src/services/flight-path-boost.js";
 import { PortalSessionStore } from "../src/services/portal-sessions.js";
 import { ItemLookupLimiter } from "../src/services/item-lookup-limiter.js";
 import { captureRawJsonBody } from "../src/services/raw-json-body.js";
@@ -56,6 +57,7 @@ const itemDelivery = {
   maximumQuantity: 200,
   deliveryMethod: "mail" as const
 };
+const flightPaths = { enabled: true, name: "Flight Risk" as const, requiresOffline: true as const };
 
 async function listen(server: Server): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -83,13 +85,15 @@ interface TestService {
   readArcaneTomeConfig(): { enabled: boolean };
   readCharacterLevelConfig(): { enabled: boolean };
   readItemDeliveryConfig(): { enabled: boolean; maximumQuantity: number };
+  readFlightPathsConfig(): { enabled: boolean };
   getOverview(accountId: number): Promise<{
-    characters: Array<{ id: string; name: string; level: number; race: string; class: string }>;
+    characters: Array<{ id: string; name: string; level: number; race: string; class: string; online: boolean }>;
     money: typeof limits;
     portableHoles: typeof portableHoles;
     arcaneTome: typeof arcaneTome;
     characterLevel: typeof characterLevel;
     itemDelivery: typeof itemDelivery;
+    flightPaths: typeof flightPaths;
   }>;
   requestMoney(accountId: number, input: MoneyBoostInput): Promise<{
     requestId: string;
@@ -124,6 +128,9 @@ interface TestService {
     message: string;
     created: boolean;
   }>;
+  requestFlightPaths(accountId: number, input: FlightPathInput): Promise<{
+    requestId: string; status: "applied"; result: "learned" | "already-known"; message: string; created: boolean;
+  }>;
 }
 
 async function withBoostServer<T>(
@@ -141,15 +148,17 @@ async function withBoostServer<T>(
     readArcaneTomeConfig: () => ({ enabled: true }),
     readCharacterLevelConfig: () => ({ enabled: true }),
     readItemDeliveryConfig: () => ({ enabled: true, maximumQuantity: 200 }),
+    readFlightPathsConfig: () => ({ enabled: true }),
     getOverview: async (accountId) => {
       assert.equal(accountId, 7);
       return {
-        characters: [{ id: "42", name: "Thalgrim", level: 80, race: "Dwarf", class: "Paladin" }],
+        characters: [{ id: "42", name: "Thalgrim", level: 80, race: "Dwarf", class: "Paladin", online: false }],
         money: limits,
         portableHoles,
         arcaneTome,
         characterLevel,
-        itemDelivery
+        itemDelivery,
+        flightPaths
       };
     },
     requestMoney: async (accountId, input) => ({
@@ -186,6 +195,10 @@ async function withBoostServer<T>(
       item: { id: input.itemId, name: "Frostweave Bag", quantity: input.quantity },
       message: `${input.quantity} Frostweave Bags were sent to Thalgrim by in-game mail.`,
       created: accountId === 7
+    }),
+    requestFlightPaths: async (accountId, input) => ({
+      requestId: input.requestId, status: "applied", result: "learned",
+      message: "Thalgrim learned all available Alliance flight paths.", created: accountId === 7
     }),
     ...serviceOverrides
   };
@@ -300,6 +313,21 @@ function postItemDelivery(
   });
 }
 
+function postFlightPaths(
+  baseUrl: string,
+  authorization: { cookie: string; csrfToken: string },
+  overrides: RequestInit = {}
+): Promise<Response> {
+  return fetch(`${baseUrl}/api/boosts/flight-paths`, {
+    method: "POST", ...overrides,
+    headers: {
+      "Content-Type": "application/json", Origin: origin, Cookie: authorization.cookie,
+      "X-CSRF-Token": authorization.csrfToken, ...overrides.headers
+    },
+    body: overrides.body ?? JSON.stringify({ requestId, characterId: "42" })
+  });
+}
+
 test("protects and returns the no-store character overview", async () => {
   await withBoostServer(async (baseUrl, authorization) => {
     const anonymous = await fetch(`${baseUrl}/api/boosts`);
@@ -312,13 +340,44 @@ test("protects and returns the no-store character overview", async () => {
     assert.equal(response.status, 200);
     assert.equal(response.headers.get("cache-control"), "no-store");
     assert.deepEqual(await response.json(), {
-      characters: [{ id: "42", name: "Thalgrim", level: 80, race: "Dwarf", class: "Paladin" }],
+      characters: [{ id: "42", name: "Thalgrim", level: 80, race: "Dwarf", class: "Paladin", online: false }],
       money: limits,
       portableHoles,
       arcaneTome,
       characterLevel,
-      itemDelivery
+      itemDelivery,
+      flightPaths
     });
+  });
+});
+
+test("applies Flight Risk with strict JSON, shared limits, safe replay status, and redacted failures", async () => {
+  const received: Array<[number, FlightPathInput]> = [];
+  await withBoostServer(async (baseUrl, authorization) => {
+    assert.equal((await postFlightPaths(baseUrl, authorization, {
+      body: JSON.stringify({ requestId, characterId: "42", taximask: "1" })
+    })).status, 400);
+    const first = await postFlightPaths(baseUrl, authorization);
+    assert.equal(first.status, 201);
+    assert.deepEqual(await first.json(), {
+      requestId, status: "applied", result: "learned",
+      message: "Thalgrim learned all available Alliance flight paths."
+    });
+    assert.deepEqual(received, [[7, { requestId, characterId: "42" }]]);
+  }, {
+    requestFlightPaths: async (accountId, input) => {
+      received.push([accountId, input]);
+      return { requestId: input.requestId, status: "applied", result: "learned",
+        message: "Thalgrim learned all available Alliance flight paths.", created: true };
+    }
+  });
+
+  await withBoostServer(async (baseUrl, authorization) => {
+    const response = await postFlightPaths(baseUrl, authorization);
+    assert.equal(response.status, 503);
+    assert.deepEqual(await response.json(), { error: "Boosts are temporarily unavailable." });
+  }, {
+    requestFlightPaths: async () => { throw new Error("taximask SQL secret"); }
   });
 });
 

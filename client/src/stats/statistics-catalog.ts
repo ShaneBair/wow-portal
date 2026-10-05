@@ -95,6 +95,17 @@ export const STATISTICS_CATALOG = [
     order: 50
   },
   {
+    slug: "violence-speedrun",
+    title: "Violence Speedrun",
+    shortDescription: "The greatest number of recorded creature killing blows within one completed UTC clock hour.",
+    category: "combat",
+    icon: "⏱️",
+    keywords: ["creature", "kills", "hour", "speedrun", "pet"],
+    populationMode: "event",
+    component: lazy(() => import("../components/ViolenceSpeedrunPanel.js").then((module) => ({ default: module.ViolenceSpeedrunPanel }))),
+    order: 60
+  },
+  {
     slug: "most-deaths",
     title: "Most Deaths",
     shortDescription: "The characters with the highest recorded death totals.",
@@ -137,6 +148,39 @@ export const STATISTICS_CATALOG = [
     populationMode: "event",
     component: lazy(() => import("../components/CompletionistPanel.js").then((module) => ({ default: module.CompletionistPanel }))),
     order: 10
+  },
+  {
+    slug: "professional-procrastinator",
+    title: "Professional Procrastinator",
+    shortDescription: "The longest recorded wall-clock wait between consecutive ordinary level gains.",
+    category: "progression",
+    icon: "⌛",
+    keywords: ["level", "ding", "wait", "time", "offline"],
+    populationMode: "event",
+    component: lazy(() => import("../components/ProfessionalProcrastinatorPanel.js").then((module) => ({ default: module.ProfessionalProcrastinatorPanel }))),
+    order: 30
+  },
+  {
+    slug: "ding-dong-dash",
+    title: "Ding Dong Dash",
+    shortDescription: "The fastest recorded wall-clock time between consecutive ordinary level gains.",
+    category: "progression",
+    icon: "🔔",
+    keywords: ["level", "ding", "speed", "time", "boost"],
+    populationMode: "event",
+    component: lazy(() => import("../components/DingDongDashPanel.js").then((module) => ({ default: module.DingDongDashPanel }))),
+    order: 20
+  },
+  {
+    slug: "quest-binge",
+    title: "Quest Binge",
+    shortDescription: "The most recorded quest completions during one completed UTC calendar day.",
+    category: "progression",
+    icon: "📚",
+    keywords: ["quest", "daily", "completion", "repeatable", "binge"],
+    populationMode: "event",
+    component: lazy(() => import("../components/QuestBingePanel.js").then((module) => ({ default: module.QuestBingePanel }))),
+    order: 40
   },
   {
     slug: "touching-grass",

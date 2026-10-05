@@ -51,7 +51,7 @@ class FakeRepository extends CharacterLevelBoostRepository {
 }
 
 function characterRow(level: number) {
-  return { guid: 42, name: "Thalgrim", level, race: 3, class: 2 };
+  return { guid: 42, name: "Thalgrim", level, race: 3, class: 2, online: 0 };
 }
 
 function serviceWith(

@@ -1,0 +1,12 @@
+-- Replace placeholders and reuse the portal user's exact existing host scope.
+GRANT SELECT, INSERT, UPDATE
+ON `PORTAL_STATE_DATABASE`.`flight_path_boost_requests`
+TO 'portal-user'@'portal-host';
+
+GRANT SELECT (`guid`, `account`, `name`, `race`, `class`, `online`, `taximask`, `deleteInfos_Name`)
+ON `PORTAL_CHARACTERS_DATABASE`.`characters`
+TO 'portal-user'@'portal-host';
+
+GRANT UPDATE (`taximask`)
+ON `PORTAL_CHARACTERS_DATABASE`.`characters`
+TO 'portal-user'@'portal-host';

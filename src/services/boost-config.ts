@@ -29,6 +29,10 @@ export interface ItemDeliveryBoostConfig {
   maximumQuantity: number;
 }
 
+export interface FlightPathsBoostConfig {
+  enabled: boolean;
+}
+
 export class BoostConfigurationError extends Error {
   constructor(message: string) {
     super(message);
@@ -144,6 +148,17 @@ export function readItemDeliveryBoostConfig(
       200,
       "BOOST_ITEM_DELIVERY_MAX_QUANTITY",
       MAX_ITEM_DELIVERY_QUANTITY
+    )
+  };
+}
+
+export function readFlightPathsBoostConfig(
+  environment: NodeJS.ProcessEnv = process.env
+): FlightPathsBoostConfig {
+  return {
+    enabled: readEnabled(
+      environment.BOOST_FLIGHT_PATHS_ENABLED,
+      "BOOST_FLIGHT_PATHS_ENABLED"
     )
   };
 }

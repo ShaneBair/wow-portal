@@ -13,8 +13,8 @@ const session = {
 };
 const overview = {
   characters: [
-    { id: "42", name: "Thalgrim", level: 80, race: "Dwarf", class: "Paladin" },
-    { id: "77", name: "Zaria", level: 40, race: "Human", class: "Mage" }
+    { id: "42", name: "Thalgrim", level: 80, race: "Dwarf", class: "Paladin", online: false },
+    { id: "77", name: "Zaria", level: 40, race: "Human", class: "Mage", online: false }
   ],
   money: {
     enabled: true,
@@ -50,7 +50,8 @@ const overview = {
     defaultQuantity: 1,
     maximumQuantity: 200,
     deliveryMethod: "mail"
-  }
+  },
+  flightPaths: { enabled: true, name: "Flight Risk", requiresOffline: true }
 };
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -100,6 +101,7 @@ function standardFetch(options: {
   characterLevel?: (init?: RequestInit) => Promise<Response>;
   itemLookup?: () => Promise<Response>;
   itemDelivery?: (init?: RequestInit) => Promise<Response>;
+  flightPaths?: (init?: RequestInit) => Promise<Response>;
 } = {}): typeof fetch {
   return (input, init) => {
     const path = pathOf(input);
@@ -151,6 +153,12 @@ function standardFetch(options: {
         message: "4 Frostweave Bags were sent to Thalgrim by in-game mail."
       }, 201));
     }
+    if (path === "/api/boosts/flight-paths") {
+      return options.flightPaths?.(init) ?? Promise.resolve(jsonResponse({
+        requestId, status: "applied", result: "learned",
+        message: "Thalgrim learned all available Alliance flight paths."
+      }, 201));
+    }
     return Promise.resolve(jsonResponse({ error: "Not found." }, 404));
   };
 }
@@ -172,10 +180,41 @@ describe("Boosts page", () => {
     expect(screen.getByText(/four 24-slot Portable Holes/u)).toBeTruthy();
     expect(screen.getByRole("heading", { level: 2, name: "Tomeward Bound" })).toBeTruthy();
     expect(screen.getByText("each character can own only one at a time.", { exact: false })).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 2, name: "Flight Risk" })).toBeTruthy();
     expect(screen.getByRole("heading", { level: 2, name: "Level Up, Buttercup" })).toBeTruthy();
     expect(screen.getByText("This character is already at the maximum level.")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Send gold" }).hasAttribute("disabled")).toBe(true);
     await waitFor(() => expect(document.title).toBe("Boosts | DaBoysZeroth"));
+  });
+
+  it("confirms canonical faction and applies Flight Risk without exposing mask details", async () => {
+    const user = userEvent.setup();
+    const { fetchMock } = renderBoosts(standardFetch({
+      flightPaths: async (init) => {
+        expect(init?.headers).toMatchObject({ "X-CSRF-Token": session.csrfToken });
+        const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        expect(Object.keys(body).sort()).toEqual(["characterId", "requestId"]);
+        expect(body.characterId).toBe("42");
+        return jsonResponse({ requestId: body.requestId, status: "applied", result: "learned",
+          message: "Thalgrim learned all available Alliance flight paths." }, 201);
+      }
+    }));
+    await screen.findByRole("heading", { level: 2, name: "Flight Risk" });
+    await user.click(screen.getByRole("button", { name: "Learn all flight paths" }));
+    expect(screen.getByText(/Teach Thalgrim all available Alliance flight paths/u)).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Confirm flight paths" }));
+    expect(await screen.findByText("Thalgrim learned all available Alliance flight paths.")).toBeTruthy();
+    expect(document.body.textContent).not.toMatch(/taximask|mask revision|3456411898/iu);
+    expect(fetchMock).toHaveBeenCalled();
+  });
+
+  it("disables Flight Risk for an online selected character", async () => {
+    renderBoosts(standardFetch({ overview: () => Promise.resolve(jsonResponse({
+      ...overview,
+      characters: [{ ...overview.characters[0], online: true }]
+    })) }));
+    expect(await screen.findByText("Log out of this character before applying Flight Risk.")).toBeTruthy();
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Learn all flight paths" }).disabled).toBe(true);
   });
 
   it("shows digits-only validation and keeps the action disabled", async () => {
@@ -508,12 +547,13 @@ describe("Boosts page", () => {
         portableHoles: { ...overview.portableHoles, enabled: false },
         arcaneTome: { ...overview.arcaneTome, enabled: false },
         characterLevel: { ...overview.characterLevel, enabled: false },
-        itemDelivery: { ...overview.itemDelivery, enabled: false }
+        itemDelivery: { ...overview.itemDelivery, enabled: false },
+        flightPaths: { ...overview.flightPaths, enabled: false }
       }))
     }));
     expect(await screen.findByText("This account does not have any characters yet.")).toBeTruthy();
     expect(screen.getByText("Free Money is currently disabled.")).toBeTruthy();
-    expect(screen.getAllByText("This boost is currently unavailable.")).toHaveLength(4);
+    expect(screen.getAllByText("This boost is currently unavailable.")).toHaveLength(5);
     empty.unmount();
 
     renderBoosts(standardFetch({

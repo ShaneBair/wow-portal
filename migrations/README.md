@@ -5,6 +5,7 @@ Run `001_create_money_boost_requests.sql`, `002_create_portable_hole_boost_reque
 `004_create_character_level_boost_requests.sql`, and then
 `005_create_item_delivery_requests.sql` while connected to the schema named by
 `PORTAL_STATE_DATABASE`. The portal process does not create schemas, tables, users, or grants.
+Then run `006_create_flight_path_boost_requests.sql` before enabling Flight Risk.
 
 For Item Delivery Service, copy `005_grant_item_delivery_permissions.sql.example`, replace its
 schema/account placeholders with the deployed `PORTAL_*` values and the existing database-account
@@ -18,8 +19,11 @@ Grant the application account only:
 - `SELECT`, `INSERT`, and `UPDATE` on `arcane_tome_boost_requests` in the portal-state schema;
 - `SELECT`, `INSERT`, and `UPDATE` on `character_level_boost_requests` in the portal-state schema;
 - `SELECT`, `INSERT`, and `UPDATE` on `item_delivery_requests` in the portal-state schema;
-- column-level `SELECT` for `guid`, `account`, `name`, `level`, `race`, `class`, and
-  `deleteInfos_Name` on the AzerothCore `characters` table;
+- `SELECT`, `INSERT`, and `UPDATE` on `flight_path_boost_requests` in the portal-state schema;
+- column-level `SELECT` for `guid`, `account`, `name`, `level`, `race`, `class`, `online`,
+  `taximask`, and `deleteInfos_Name` on the AzerothCore `characters` table;
+- column-level `UPDATE` for only `characters.taximask`; this is the deliberate Flight Risk
+  direct-character-write exception and requires the character to be offline;
 - column-level `SELECT` for `id`, `receiver`, `subject`, `body`, `has_items`, and `money` on the
   AzerothCore `mail` table;
 - column-level `SELECT` for `mail_id` and `item_guid` on the AzerothCore `mail_items` table;
@@ -83,6 +87,16 @@ And to resolved item-delivery requests:
 DELETE FROM item_delivery_requests
 WHERE created_at < TIMESTAMPADD(DAY, -90, UTC_TIMESTAMP())
   AND status IN ('sent', 'failed')
+ORDER BY created_at
+LIMIT 1000;
+```
+
+And to resolved Flight Risk requests:
+
+```sql
+DELETE FROM flight_path_boost_requests
+WHERE created_at < TIMESTAMPADD(DAY, -90, UTC_TIMESTAMP())
+  AND status IN ('applied', 'failed')
 ORDER BY created_at
 LIMIT 1000;
 ```

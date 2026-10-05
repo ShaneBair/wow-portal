@@ -47,6 +47,12 @@ import {
   type ItemDeliverySuccess
 } from "../services/item-delivery.js";
 import type { ItemDeliveryBoostConfig } from "../services/boost-config.js";
+import {
+  parseFlightPathInput,
+  type FlightPathInput,
+  type FlightPathSuccess
+} from "../services/flight-path-boost.js";
+import type { FlightPathsBoostConfig } from "../services/boost-config.js";
 import { itemLookupLimiter, type ItemLookupLimiter } from "../services/item-lookup-limiter.js";
 import { getRawJsonBody } from "../services/raw-json-body.js";
 
@@ -57,6 +63,7 @@ const RATE_LIMIT_MESSAGE = "Too many boost submissions. Try again later.";
 const INVALID_CHARACTER_LEVEL_REQUEST_MESSAGE = "Enter a valid character, request ID, and target level.";
 const INVALID_ITEM_DELIVERY_REQUEST_MESSAGE = "Enter a valid character, request ID, item ID, and quantity.";
 const LOOKUP_RATE_LIMIT_MESSAGE = "Too many item lookups. Try again later.";
+const INVALID_FLIGHT_PATH_REQUEST_MESSAGE = "Enter a valid character and request ID.";
 
 export interface BoostsRouterDependencies {
   service?: {
@@ -65,6 +72,7 @@ export interface BoostsRouterDependencies {
     readArcaneTomeConfig(): ArcaneTomeBoostConfig;
     readCharacterLevelConfig(): CharacterLevelBoostConfig;
     readItemDeliveryConfig(): ItemDeliveryBoostConfig;
+    readFlightPathsConfig(): FlightPathsBoostConfig;
     getOverview(accountId: number): Promise<BoostsOverview>;
     requestMoney(accountId: number, input: MoneyBoostInput): Promise<MoneyBoostSuccess>;
     requestPortableHoles(accountId: number, input: PortableHolesInput): Promise<PortableHolesSuccess>;
@@ -72,6 +80,7 @@ export interface BoostsRouterDependencies {
     requestCharacterLevel(accountId: number, input: CharacterLevelInput): Promise<CharacterLevelSuccess>;
     lookupItem(itemId: number): Promise<ItemDeliveryPreview | undefined>;
     requestItemDelivery(accountId: number, input: ItemDeliveryInput): Promise<ItemDeliverySuccess>;
+    requestFlightPaths(accountId: number, input: FlightPathInput): Promise<FlightPathSuccess>;
   };
   limiter?: BoostMutationLimiter;
   lookupLimiter?: ItemLookupLimiter;
@@ -363,6 +372,38 @@ export function createBoostsRouter(dependencies: BoostsRouterDependencies = {}):
       }
       const errorKind = error instanceof Error ? error.name : "UnknownError";
       console.error(`Item delivery dependency failed (${errorKind}).`);
+      return response.status(503).json({ error: UNAVAILABLE_MESSAGE });
+    }
+  });
+
+  router.post("/api/boosts/flight-paths", requireMutation, async (request, response) => {
+    if (!request.is("application/json")) {
+      return response.status(400).json({ error: INVALID_FLIGHT_PATH_REQUEST_MESSAGE });
+    }
+    let config;
+    try { config = service.readFlightPathsConfig(); } catch (error) {
+      const errorKind = error instanceof Error ? error.name : "UnknownError";
+      console.error(`Flight Risk configuration failed (${errorKind}).`);
+      return response.status(503).json({ error: UNAVAILABLE_MESSAGE });
+    }
+    const input = parseFlightPathInput(request.body);
+    if (!input) return response.status(400).json({ error: INVALID_FLIGHT_PATH_REQUEST_MESSAGE });
+    if (!config.enabled) return response.status(503).json({ error: "This boost is currently unavailable." });
+    if (!limiter.consume(request.ip ?? "unknown")) {
+      return response.status(429).json({ error: RATE_LIMIT_MESSAGE });
+    }
+    const locals = response.locals as PortalAuthLocals;
+    try {
+      const result = await service.requestFlightPaths(locals.authenticatedPrincipal.accountId, input);
+      const { created, ...body } = result;
+      return response.status(created ? 201 : 200).json(body);
+    } catch (error) {
+      if (error instanceof BoostRequestError) {
+        const failure = publicRequestFailure(error, "Flight paths could not be learned. Try again later.");
+        return response.status(failure.status).json(failure.body);
+      }
+      const errorKind = error instanceof Error ? error.name : "UnknownError";
+      console.error(`Flight Risk dependency failed (${errorKind}).`);
       return response.status(503).json({ error: UNAVAILABLE_MESSAGE });
     }
   });

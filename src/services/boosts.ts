@@ -1,4 +1,4 @@
-import type { ArcaneTomeBoostConfig, CharacterLevelBoostConfig, ItemDeliveryBoostConfig, MoneyBoostConfig, PortableHolesBoostConfig } from "./boost-config.js";
+import type { ArcaneTomeBoostConfig, CharacterLevelBoostConfig, FlightPathsBoostConfig, ItemDeliveryBoostConfig, MoneyBoostConfig, PortableHolesBoostConfig } from "./boost-config.js";
 import {
   characterLevelBoostService,
   type CharacterLevelBoostService,
@@ -35,6 +35,13 @@ import {
   type ItemDeliveryService,
   type ItemDeliverySuccess
 } from "./item-delivery.js";
+import {
+  flightPathBoostService,
+  type FlightPathBoostService,
+  type FlightPathInput,
+  type FlightPathsMetadata,
+  type FlightPathSuccess
+} from "./flight-path-boost.js";
 
 export interface BoostsOverview {
   characters: BoostCharacter[];
@@ -43,6 +50,7 @@ export interface BoostsOverview {
   arcaneTome: ArcaneTomeMetadata;
   characterLevel: CharacterLevelMetadata;
   itemDelivery: ItemDeliveryMetadata;
+  flightPaths: FlightPathsMetadata;
 }
 
 export interface BoostsServiceDependencies {
@@ -51,6 +59,7 @@ export interface BoostsServiceDependencies {
   arcaneTome?: ArcaneTomeBoostService;
   characterLevel?: CharacterLevelBoostService;
   itemDelivery?: ItemDeliveryService;
+  flightPaths?: FlightPathBoostService;
 }
 
 export class BoostsService {
@@ -59,6 +68,7 @@ export class BoostsService {
   private readonly arcaneTome: ArcaneTomeBoostService;
   private readonly characterLevel: CharacterLevelBoostService;
   private readonly itemDelivery: ItemDeliveryService;
+  private readonly flightPaths: FlightPathBoostService;
 
   constructor(dependencies: BoostsServiceDependencies = {}) {
     this.money = dependencies.money ?? playerBoostService;
@@ -66,6 +76,7 @@ export class BoostsService {
     this.arcaneTome = dependencies.arcaneTome ?? arcaneTomeBoostService;
     this.characterLevel = dependencies.characterLevel ?? characterLevelBoostService;
     this.itemDelivery = dependencies.itemDelivery ?? itemDeliveryService;
+    this.flightPaths = dependencies.flightPaths ?? flightPathBoostService;
   }
 
   readMoneyConfig(): MoneyBoostConfig {
@@ -88,15 +99,18 @@ export class BoostsService {
     return this.itemDelivery.readConfig();
   }
 
+  readFlightPathsConfig(): FlightPathsBoostConfig { return this.flightPaths.readConfig(); }
+
   async getOverview(accountId: number): Promise<BoostsOverview> {
-    const [moneyOverview, portableHoles, arcaneTome, characterLevel, itemDelivery] = await Promise.all([
+    const [moneyOverview, portableHoles, arcaneTome, characterLevel, itemDelivery, flightPaths] = await Promise.all([
       this.money.getOverview(accountId),
       this.portableHoles.getMetadata(accountId),
       this.arcaneTome.getMetadata(accountId),
       this.characterLevel.getMetadata(accountId),
-      this.itemDelivery.getMetadata(accountId)
+      this.itemDelivery.getMetadata(accountId),
+      this.flightPaths.getMetadata()
     ]);
-    return { ...moneyOverview, portableHoles, arcaneTome, characterLevel, itemDelivery };
+    return { ...moneyOverview, portableHoles, arcaneTome, characterLevel, itemDelivery, flightPaths };
   }
 
   requestMoney(accountId: number, input: MoneyBoostInput): Promise<MoneyBoostSuccess> {
@@ -124,6 +138,10 @@ export class BoostsService {
 
   requestItemDelivery(accountId: number, input: ItemDeliveryInput): Promise<ItemDeliverySuccess> {
     return this.itemDelivery.requestItem(accountId, input);
+  }
+
+  requestFlightPaths(accountId: number, input: FlightPathInput): Promise<FlightPathSuccess> {
+    return this.flightPaths.requestFlightPaths(accountId, input);
   }
 }
 

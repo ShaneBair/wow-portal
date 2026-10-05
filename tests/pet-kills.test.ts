@@ -45,9 +45,14 @@ test("builds one exact direct-and-pet aggregation with pet-qualified rows", () =
   assert.match(players.sql, /e\.value2 IS NULL OR e\.value2 <> 0/u);
   assert.match(players.sql, /SUM\(e\.event_type = \?\) AS petKills/u);
   assert.match(players.sql, /SUM\(e\.event_type = \?\) AS directKills/u);
-  assert.match(players.sql, /COUNT\(\*\) AS totalKills/u);
+  assert.match(players.sql, /COUNT\(\*\) AS recordedKillCount/u);
+  assert.match(players.sql, /ck\.recordedKillCount AS totalKills/u);
+  assert.doesNotMatch(players.sql, /COUNT\(\*\) AS totalKills/u);
   assert.match(players.sql, /HAVING petKills > 0/u);
-  assert.match(players.sql, /ORDER BY petKills DESC, petKills \/ totalKills DESC, totalKills DESC/u);
+  assert.match(
+    players.sql,
+    /ORDER BY petKills DESC, petKills \/ recordedKillCount DESC, recordedKillCount DESC/u
+  );
   assert.match(players.sql, /LIMIT 25/u);
   assert.doesNotMatch(all.sql, /AND e\.actor_is_bot = 0/u);
 });

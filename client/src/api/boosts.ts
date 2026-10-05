@@ -6,6 +6,7 @@ export interface BoostCharacter {
   level: number;
   race: string;
   class: string;
+  online: boolean;
 }
 
 export interface MoneyBoostLimits {
@@ -48,6 +49,12 @@ export interface ItemDeliveryBoostMetadata {
   deliveryMethod: "mail";
 }
 
+export interface FlightPathsBoostMetadata {
+  enabled: boolean;
+  name: "Flight Risk";
+  requiresOffline: true;
+}
+
 export interface ItemDeliveryPreview {
   id: number;
   name: string;
@@ -62,6 +69,7 @@ export interface BoostOverview {
   arcaneTome: ArcaneTomeBoostMetadata;
   characterLevel: CharacterLevelBoostMetadata;
   itemDelivery: ItemDeliveryBoostMetadata;
+  flightPaths: FlightPathsBoostMetadata;
 }
 
 export interface SendMoneyInput {
@@ -117,6 +125,14 @@ export interface SendItemDeliveryResult {
   message: string;
 }
 
+export type SendFlightPathsInput = SendPortableHolesInput;
+export interface SendFlightPathsResult {
+  requestId: string;
+  status: "applied";
+  result: "learned" | "already-known";
+  message: string;
+}
+
 export class BoostApiError extends PortalApiError {
   constructor(
     message: string,
@@ -161,7 +177,7 @@ function parseCharacter(value: unknown): BoostCharacter | undefined {
     typeof value.name !== "string" || Array.from(value.name).length < 2 || Array.from(value.name).length > 12 ||
     typeof value.race !== "string" || value.race.length > 64 ||
     typeof value.class !== "string" || value.class.length > 64 ||
-    !isSafePositiveInteger(value.level) || value.level > 80
+    !isSafePositiveInteger(value.level) || value.level > 80 || typeof value.online !== "boolean"
   ) {
     return undefined;
   }
@@ -170,7 +186,8 @@ function parseCharacter(value: unknown): BoostCharacter | undefined {
     name: value.name,
     level: value.level,
     race: value.race,
-    class: value.class
+    class: value.class,
+    online: value.online
   };
 }
 
@@ -182,7 +199,8 @@ function parseOverview(value: unknown): BoostOverview | undefined {
     !isRecord(value.portableHoles) ||
     !isRecord(value.arcaneTome) ||
     !isRecord(value.characterLevel) ||
-    !isRecord(value.itemDelivery)
+    !isRecord(value.itemDelivery) ||
+    !isRecord(value.flightPaths)
   ) {
     return undefined;
   }
@@ -192,6 +210,7 @@ function parseOverview(value: unknown): BoostOverview | undefined {
   const arcaneTome = value.arcaneTome;
   const characterLevel = value.characterLevel;
   const itemDelivery = value.itemDelivery;
+  const flightPaths = value.flightPaths;
   if (
     characters.some((character) => character === undefined) ||
     typeof money.enabled !== "boolean" ||
@@ -218,7 +237,10 @@ function parseOverview(value: unknown): BoostOverview | undefined {
     itemDelivery.name !== "Item Delivery Service" ||
     itemDelivery.defaultQuantity !== 1 ||
     !isSafePositiveInteger(itemDelivery.maximumQuantity) ||
-    itemDelivery.deliveryMethod !== "mail"
+    itemDelivery.deliveryMethod !== "mail" ||
+    typeof flightPaths.enabled !== "boolean" ||
+    flightPaths.name !== "Flight Risk" ||
+    flightPaths.requiresOffline !== true
   ) {
     return undefined;
   }
@@ -258,6 +280,11 @@ function parseOverview(value: unknown): BoostOverview | undefined {
       defaultQuantity: itemDelivery.defaultQuantity,
       maximumQuantity: itemDelivery.maximumQuantity,
       deliveryMethod: itemDelivery.deliveryMethod
+    },
+    flightPaths: {
+      enabled: flightPaths.enabled,
+      name: flightPaths.name,
+      requiresOffline: flightPaths.requiresOffline
     }
   };
 }
@@ -558,4 +585,33 @@ export async function sendItemDelivery(
     item: { id: input.itemId, name: body.item.name, quantity: input.quantity },
     message: body.message
   };
+}
+
+export async function sendFlightPathsBoost(input: SendFlightPathsInput): Promise<SendFlightPathsResult> {
+  const unknownMessage = "Flight paths could not be confirmed. Use the same request ID or contact an administrator.";
+  let response: Response;
+  try {
+    response = await fetch("/api/boosts/flight-paths", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": input.csrfToken },
+      credentials: "same-origin",
+      body: JSON.stringify({ requestId: input.requestId, characterId: input.characterId })
+    });
+  } catch { throw new BoostApiError(unknownMessage, 0, "unknown", input.requestId); }
+  let body: unknown;
+  try { body = await response.json() as unknown; } catch {
+    throw new BoostApiError(unknownMessage, response.status, "unknown", input.requestId);
+  }
+  if (!response.ok) {
+    const status = isRecord(body) && (body.status === "pending" || body.status === "unknown")
+      ? body.status : undefined;
+    const requestId = isRecord(body) && typeof body.requestId === "string" ? body.requestId : undefined;
+    throw new BoostApiError(readPublicError(body, "Flight paths could not be learned. Try again later."), response.status, status, requestId);
+  }
+  if (
+    !isRecord(body) || body.requestId !== input.requestId || body.status !== "applied" ||
+    (body.result !== "learned" && body.result !== "already-known") ||
+    typeof body.message !== "string" || body.message.length > 256
+  ) throw new BoostApiError(unknownMessage, response.status, "unknown", input.requestId);
+  return { requestId: input.requestId, status: "applied", result: body.result, message: body.message };
 }

@@ -1125,6 +1125,14 @@ code {
   border-style: dashed;
 }
 
+.character-detail {
+  display: block;
+  margin-top: 3px;
+  color: #9da8b7;
+  font-size: .78rem;
+  font-weight: 400;
+}
+
 .deaths-total {
   color: #f4f6f8;
   font-size: 1.02rem;

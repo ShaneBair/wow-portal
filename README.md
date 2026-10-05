@@ -137,6 +137,12 @@ both population queries with `EXPLAIN`, confirm the event-type index is used and
 under eight seconds, then compare controlled direct and pet kills under standard and privileged
 visibility scopes.
 
+Let the Pet Cook reuses the existing creature-kill event, current-character, and account reads; it
+does not require another database grant. Punching Up additionally reads the recorded killer level
+from `mod_player_stats_events.actor_level`. Installations using column-scoped event-table grants
+must add `actor_level` to that reader's `SELECT` columns. Neither statistic requires a migration or
+database write.
+
 Bot Wrangler has fixed human-killer/bot-victim semantics and reads only valid `PVP_KILL` events.
 It joins current killer metadata but never returns victim names, GUIDs, or account IDs. Standard
 visibility excludes an event when either participant account is hidden; no new table, grant, world
@@ -195,6 +201,14 @@ The existing column-scoped progress-table grant shown above is sufficient. Do no
 table writes. Before enabling the card, run its bound query with `EXPLAIN`, confirm it remains below
 eight seconds, loot a known coin amount, and verify the exact counter delta under both standard and
 privileged visibility scopes.
+
+Frequent Flyer reads AzerothCore's lifetime travel-spending counter from
+`character_achievement_progress`. The deployed `Achievement_Criteria.dbc` has exactly one type-63
+criterion: `3356`, under achievement `1146`; both are labeled `Gold spent on travel`. For this
+verified deployment, set the ignored `.env` value `STATS_TRAVEL_MONEY_CRITERIA_ID=3356`. The
+existing column-scoped progress-table grant shown above is sufficient; do not grant writes. A
+controlled paid flight must still verify the precise counter delta before the statistic is treated
+as gameplay-validated.
 
 The Completionist award reuses that read-only connection and counts `QUEST_COMPLETE` event rows,
 with separate Player/Bot groups and independent population caches. Ensure the event-table grant
@@ -286,7 +300,8 @@ Before enabling it, apply `migrations/001_create_money_boost_requests.sql` to th
 portal-state schema. Grant the portal user `SELECT`, `INSERT`, and `UPDATE` on that table,
 column-scoped `SELECT` for `characters.guid`, `account`, `name`, `level`, `race`, `class`, and
 `deleteInfos_Name`, and column-scoped `SELECT` for `mail.id`, `receiver`, `subject`, `body`, and
-`money`. Do not grant writes to AzerothCore schemas.
+`money`. Do not grant writes to AzerothCore schemas except the narrowly documented Flight Risk
+`UPDATE(characters.taximask)` grant below.
 
 Keep `BOOST_MONEY_ENABLED=false` until the deployed Playerbots/AzerothCore revision's exact
 `send money` success output, permission, offline delivery, amount range, replay behavior, and mail
@@ -321,6 +336,14 @@ mails a bounded quantity with AzerothCore's existing `send items` command. Apply
 and `BOOST_ITEM_DELIVERY_MAX_QUANTITY`; keep `BOOST_ITEM_DELIVERY_ENABLED=false` until migration,
 grants, deployed command output, replay, and mail reconciliation are verified. This feature does
 not require an AzerothCore module or worldserver rebuild.
+
+Flight Risk permanently ORs a checked-in, revisioned faction taxi-node mask into an owned offline
+character's saved `taximask`. Apply `migrations/006_create_flight_path_boost_requests.sql` and the
+column-scoped grants in `migrations/006_grant_flight_path_permissions.sql.example`. This
+`UPDATE(characters.taximask)` permission is a deliberate, narrow exception to the portal's normal
+read-only character access; do not grant table-wide `UPDATE`. Keep
+`BOOST_FLIGHT_PATHS_ENABLED=false` until the deployed DBC provenance, offline behavior, replay,
+Alliance/Horde/Death Knight routes, and login-race wording have been operator-verified.
 
 ## Authenticated account roster
 

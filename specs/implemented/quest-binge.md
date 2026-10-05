@@ -1,12 +1,8 @@
 # Quest Binge
 
-**Status:** Draft  
+**Status:** Implemented  
 **Owner:** WoW Portal  
 **Repository:** `wow-portal`
-
-## Current Behavior
-
-The portal reports total quest completions but not a character’s best daily burst.
 
 ## Outcome
 
@@ -24,7 +20,7 @@ Require event type `QUEST_COMPLETE`, quest target type, positive quest `target_e
 
 Group by `actor_is_bot`, so the all-population view may contain separate Player and Bot rows for one character. Return current character metadata plus `type`, `day` (`YYYY-MM-DD` UTC), `questsCompleted`, and `uniqueQuests`. No migration, world join, or module change is required.
 
-The history grouping must pass an `EXPLAIN` and live-volume timing check within the 8-second budget. Any needed new index or rollup requires a separate additive migration/specification.
+Production-volume verification covered 55,981 quest events within 4.3 million total events. `EXPLAIN ANALYZE` completed in approximately 0.6 seconds for players and 7.5 seconds for all characters. The exact concurrent integrity-plus-history service path completed in approximately 6.0 seconds for players and 6.6 seconds for all characters, below the eight-second timeout. The all-population query uses the existing `idx_bot_event_time` index to avoid the optimizer’s slower character-first plan.
 
 ## HTTP and Service Contract
 

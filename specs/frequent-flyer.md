@@ -54,3 +54,16 @@ Add the public “Frequent Flyer” card outside event-population control. Show 
 ## Non-Goals
 
 Distance traveled, map coverage, flight count, mounts, portals, hearthstones, historical controller splitting, and changing core counters are out of scope.
+
+## Implementation Notes
+
+Criterion verification was completed against the DBC loaded by the deployed worldserver on
+2026-10-01. `Achievement_Criteria.dbc` is a WDBC file with 7,655 records, 31 fields, and 124-byte
+records. It contains exactly one enum-type-63 row: criterion `3356`, parent achievement `1146`,
+with criterion description and parent title `Gold spent on travel`.
+
+An identifier-free deployed-data check found 2,011 positive progress rows for criterion `3356`,
+ranging from 94 through 1,433,782 copper. Configure the deployed portal with
+`STATS_TRAVEL_MONEY_CRITERIA_ID=3356`. The existing column-scoped `SELECT` grant for `guid`,
+`criteria`, and `counter` on `character_achievement_progress` is sufficient. A controlled paid
+flight-path purchase remains required to validate the exact runtime increment semantics.

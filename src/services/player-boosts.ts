@@ -35,6 +35,7 @@ export interface BoostCharacter {
   level: number;
   race: string;
   class: string;
+  online: boolean;
 }
 
 export interface BoostOverview {
@@ -109,7 +110,7 @@ export function buildOwnedCharactersQuery(
   const characterTable = qualified(charactersDatabase, "characters");
   const guidPredicate = characterGuid === undefined ? "" : "\n  AND guid = ?";
   return {
-    sql: `SELECT guid, name, level, race, class
+    sql: `SELECT guid, name, level, race, class, online
 FROM ${characterTable}
 WHERE account = ?
   AND deleteInfos_Name IS NULL${guidPredicate}
@@ -155,13 +156,15 @@ export function mapOwnedCharacterRows(rows: unknown): OwnedBoostCharacter[] {
     const guid = readInteger(source.guid, "GUID", 1, MAX_CHARACTER_GUID);
     const raceId = readInteger(source.race, "race", 0, MAX_RACE_OR_CLASS_ID);
     const classId = readInteger(source.class, "class", 0, MAX_RACE_OR_CLASS_ID);
+    const online = readInteger(source.online, "online", 0, 1);
     return {
       guid,
       id: String(guid),
       name: readDisplayName(source.name),
       level: readInteger(source.level, "level", 1, MAX_CHARACTER_LEVEL),
       race: getRaceName(raceId),
-      class: getClassName(classId)
+      class: getClassName(classId),
+      online: online === 1
     };
   });
   mapped.sort((left, right) =>

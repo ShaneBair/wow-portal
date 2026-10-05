@@ -48,7 +48,7 @@ class FakeRepository extends ArcaneTomeBoostRepository {
 
 function serviceWith(repository: FakeRepository, executeCommand?: (command: string) => Promise<SoapResult>) {
   return new ArcaneTomeBoostService({
-    queryCharacters: async () => [{ guid: 42, name: "Thalgrim", level: 80, race: 3, class: 2 }],
+    queryCharacters: async () => [{ guid: 42, name: "Thalgrim", level: 80, race: 3, class: 2, online: 0 }],
     repository,
     getConfig: () => ({ enabled: true }),
     executeCommand: executeCommand ?? (async () => ({ ok: true, output: "Mail sent to Thalgrim" }))

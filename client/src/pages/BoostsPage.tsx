@@ -8,6 +8,7 @@ import {
   sendCharacterLevelBoost,
   sendMoneyBoost,
   sendPortableHolesBoost,
+  sendFlightPathsBoost,
   sendItemDelivery,
   type MoneyBoostLimits,
   type BoostOverview,
@@ -16,6 +17,7 @@ import {
   type SendItemDeliveryInput,
   type SendMoneyInput,
   type SendPortableHolesInput,
+  type SendFlightPathsInput,
   type ItemDeliveryPreview
 } from "../api/boosts.js";
 import { useAuth } from "../auth/auth-context.js";
@@ -40,6 +42,16 @@ interface CharacterLevelConfirmation extends PortableHolesConfirmation {
 interface ItemDeliveryConfirmation extends PortableHolesConfirmation {
   item: ItemDeliveryPreview;
   quantity: number;
+}
+
+interface FlightPathConfirmation extends PortableHolesConfirmation {
+  faction: "Alliance" | "Horde";
+}
+
+function factionForRaceName(race: string): "Alliance" | "Horde" | undefined {
+  if (["Human", "Dwarf", "Night Elf", "Gnome", "Draenei"].includes(race)) return "Alliance";
+  if (["Orc", "Undead", "Tauren", "Troll", "Blood Elf"].includes(race)) return "Horde";
+  return undefined;
 }
 
 function parseDigits(value: string, maximum: number): number | undefined {
@@ -85,17 +97,21 @@ export function BoostsPage() {
   const [itemConfirmation, setItemConfirmation] = useState<ItemDeliveryConfirmation>();
   const [itemMessage, setItemMessage] = useState<SubmissionMessage>();
   const [itemUnknownLocked, setItemUnknownLocked] = useState(false);
+  const [flightConfirmation, setFlightConfirmation] = useState<FlightPathConfirmation>();
+  const [flightMessage, setFlightMessage] = useState<SubmissionMessage>();
   const moneySubmissionGuard = useRef(false);
   const portableSubmissionGuard = useRef(false);
   const tomeSubmissionGuard = useRef(false);
   const levelSubmissionGuard = useRef(false);
   const itemSubmissionGuard = useRef(false);
+  const flightSubmissionGuard = useRef(false);
   const goldInput = useRef<HTMLInputElement>(null);
   const sendBagsButton = useRef<HTMLButtonElement>(null);
   const confirmBagsButton = useRef<HTMLButtonElement>(null);
   const sendTomeButton = useRef<HTMLButtonElement>(null);
   const raiseLevelButton = useRef<HTMLButtonElement>(null);
   const sendItemButton = useRef<HTMLButtonElement>(null);
+  const flightPathsButton = useRef<HTMLButtonElement>(null);
 
   const overviewQuery = useQuery({
     queryKey: ["protected", "boosts", username],
@@ -147,11 +163,14 @@ export function BoostsPage() {
     setItemConfirmation(undefined);
     setItemMessage(undefined);
     setItemUnknownLocked(false);
+    setFlightConfirmation(undefined);
+    setFlightMessage(undefined);
     moneySubmissionGuard.current = false;
     portableSubmissionGuard.current = false;
     tomeSubmissionGuard.current = false;
     levelSubmissionGuard.current = false;
     itemSubmissionGuard.current = false;
+    flightSubmissionGuard.current = false;
   }, [username]);
 
   useEffect(() => {
@@ -332,11 +351,37 @@ export function BoostsPage() {
     }
   });
 
+  const flightMutation = useMutation({
+    mutationFn: sendFlightPathsBoost,
+    retry: false,
+    onSuccess: (result) => {
+      flightSubmissionGuard.current = false;
+      setFlightConfirmation(undefined);
+      setFlightMessage({ tone: "success", text: result.message });
+      void queryClient.invalidateQueries({ queryKey: ["protected", "boosts", username] });
+    },
+    onError: (error: Error, variables: SendFlightPathsInput) => {
+      flightSubmissionGuard.current = false;
+      setFlightConfirmation(undefined);
+      if (error instanceof BoostApiError && error.httpStatus === 401) { auth.setSignedOut(); return; }
+      const ambiguous = error instanceof BoostApiError &&
+        (error.deliveryStatus === "unknown" || error.deliveryStatus === "pending");
+      setFlightMessage({
+        tone: "error", text: error.message,
+        requestId: ambiguous ? error.requestId ?? variables.requestId : undefined
+      });
+      if (error instanceof BoostApiError && error.httpStatus === 409) {
+        void queryClient.invalidateQueries({ queryKey: ["protected", "boosts", username] });
+      }
+    }
+  });
+
   const limits = overviewQuery.data?.money;
   const portableHoles = overviewQuery.data?.portableHoles;
   const arcaneTome = overviewQuery.data?.arcaneTome;
   const characterLevel = overviewQuery.data?.characterLevel;
   const itemDelivery = overviewQuery.data?.itemDelivery;
+  const flightPaths = overviewQuery.data?.flightPaths;
   const validationMessage = validateGold(goldText, limits);
   const characters = overviewQuery.data?.characters ?? [];
   const moneyControlsDisabled = moneyMutation.isPending || unknownLocked;
@@ -377,6 +422,12 @@ export function BoostsPage() {
     !itemIdValidation && !quantityValidation && !itemControlsDisabled &&
     !itemLookupQuery.isPending && !itemConfirmation
   );
+  const selectedFaction = selectedCharacter ? factionForRaceName(selectedCharacter.race) : undefined;
+  const canStartFlightPaths = Boolean(
+    authenticatedSession && flightPaths?.enabled && selectedCharacter && selectedFaction &&
+    !selectedCharacter.online && !overviewQuery.isPending && !overviewQuery.isError &&
+    !flightMutation.isPending && !flightConfirmation
+  );
 
   function changeCharacter(value: string): void {
     setSelectedCharacterId(value);
@@ -385,6 +436,8 @@ export function BoostsPage() {
     setTomeConfirmation(undefined);
     setLevelConfirmation(undefined);
     setItemConfirmation(undefined);
+    setFlightConfirmation(undefined);
+    setFlightMessage(undefined);
   }
 
   function submitMoney(event: FormEvent<HTMLFormElement>): void {
@@ -518,6 +571,29 @@ export function BoostsPage() {
     });
   }
 
+  function startFlightPathConfirmation(): void {
+    if (!canStartFlightPaths || !selectedCharacter || !selectedFaction) return;
+    setFlightMessage(undefined);
+    setFlightConfirmation({
+      characterId: selectedCharacter.id, characterName: selectedCharacter.name, faction: selectedFaction
+    });
+  }
+
+  function cancelFlightPathConfirmation(): void {
+    setFlightConfirmation(undefined);
+    requestAnimationFrame(() => flightPathsButton.current?.focus());
+  }
+
+  function confirmFlightPaths(): void {
+    if (!flightConfirmation || !authenticatedSession || flightSubmissionGuard.current) return;
+    flightSubmissionGuard.current = true;
+    setFlightMessage(undefined);
+    flightMutation.mutate({
+      requestId: crypto.randomUUID(), characterId: flightConfirmation.characterId,
+      csrfToken: authenticatedSession.csrfToken
+    });
+  }
+
   return (
     <main>
       <DocumentTitle>Boosts | DaBoysZeroth</DocumentTitle>
@@ -530,7 +606,7 @@ export function BoostsPage() {
         <h2 id="boost-character-heading">Character</h2>
         <label htmlFor="boost-character">Choose a character</label>
         <select id="boost-character" value={selectedCharacterId}
-          disabled={overviewQuery.isPending || overviewQuery.isError || characters.length === 0 || moneyMutation.isPending || portableMutation.isPending || tomeMutation.isPending || levelMutation.isPending || itemMutation.isPending || unknownLocked}
+          disabled={overviewQuery.isPending || overviewQuery.isError || characters.length === 0 || moneyMutation.isPending || portableMutation.isPending || tomeMutation.isPending || levelMutation.isPending || itemMutation.isPending || flightMutation.isPending || unknownLocked}
           onChange={(event) => changeCharacter(event.target.value)}>
           <option value="">Select a character</option>
           {characters.map((character) => <option key={character.id} value={character.id}>
@@ -706,6 +782,31 @@ export function BoostsPage() {
           {levelMessage && <div className={`message ${levelMessage.tone}`} role="status" aria-live="polite">
             <p>{levelMessage.text}</p>
             {levelMessage.requestId && <p>Request ID: <code>{levelMessage.requestId}</code></p>}
+          </div>}
+        </section>
+
+        <section className="panel boost-card" aria-labelledby="flight-risk-heading">
+          <h2 id="flight-risk-heading">Flight Risk</h2>
+          <p>Learn every standard flight path available to this character&apos;s faction. The character must be logged out.</p>
+          <p className="field-help">This does not teach riding or flying skills, grant a mount, or provide fare money.</p>
+          {flightPaths && !flightPaths.enabled && <p className="message error" role="status">This boost is currently unavailable.</p>}
+          {selectedCharacter?.online && <p className="message error" role="status">Log out of this character before applying Flight Risk.</p>}
+          {!flightConfirmation && <button ref={flightPathsButton} type="button" disabled={!canStartFlightPaths} onClick={startFlightPathConfirmation}>
+            {flightMutation.isPending ? "Learning flight paths..." : "Learn all flight paths"}
+          </button>}
+          {flightConfirmation && <div className="boost-confirmation" role="group" aria-labelledby="flight-risk-confirmation-heading">
+            <h3 id="flight-risk-confirmation-heading">Confirm flight paths</h3>
+            <p>Teach {flightConfirmation.characterName} all available {flightConfirmation.faction} flight paths? Keep this character logged out until the request finishes.</p>
+            <div className="boost-confirmation-actions">
+              <button type="button" disabled={flightMutation.isPending} onClick={confirmFlightPaths}>
+                {flightMutation.isPending ? "Learning flight paths..." : "Confirm flight paths"}
+              </button>
+              <button type="button" className="secondary" disabled={flightMutation.isPending} onClick={cancelFlightPathConfirmation}>Cancel</button>
+            </div>
+          </div>}
+          {flightMessage && <div className={`message ${flightMessage.tone}`} role="status" aria-live="polite">
+            <p>{flightMessage.text}</p>
+            {flightMessage.requestId && <p>Request ID: <code>{flightMessage.requestId}</code></p>}
           </div>}
         </section>
       </div>
