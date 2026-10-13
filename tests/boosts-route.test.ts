@@ -454,13 +454,17 @@ test("maps ownership, replay conflict, and unknown delivery without leaking inte
   }
 });
 
-test("shares five boost submissions per client minute across every boost endpoint", async () => {
+test("shares fifteen boost submissions per client minute across every boost endpoint", async () => {
   await withBoostServer(async (baseUrl, authorization) => {
     assert.equal((await postMoney(baseUrl, authorization)).status, 201);
     assert.equal((await postPortableHoles(baseUrl, authorization)).status, 201);
     assert.equal((await postArcaneTome(baseUrl, authorization)).status, 201);
     assert.equal((await postCharacterLevel(baseUrl, authorization)).status, 201);
     assert.equal((await postItemDelivery(baseUrl, authorization)).status, 201);
+    assert.equal((await postFlightPaths(baseUrl, authorization)).status, 201);
+    for (let submission = 6; submission < 15; submission += 1) {
+      assert.equal((await postItemDelivery(baseUrl, authorization)).status, 201);
+    }
     const limited = await postItemDelivery(baseUrl, authorization);
     assert.equal(limited.status, 429);
     assert.deepEqual(await limited.json(), { error: "Too many boost submissions. Try again later." });

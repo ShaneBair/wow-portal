@@ -1,5 +1,5 @@
 const WINDOW_MS = 60_000;
-const LIMIT = 5;
+const LIMIT = 15;
 const MAX_KEYS = 10_000;
 
 interface WindowRecord {

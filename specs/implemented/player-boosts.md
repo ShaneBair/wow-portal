@@ -176,7 +176,7 @@ Requirements:
 - `gold` must be a JSON integer within current server limits.
 - Require an authenticated session, exact allowed origin, and valid session CSRF token.
 - Recheck current character ownership and all account limits after validating the request and before invoking SOAP.
-- Apply a modest per-IP mutation rate limit in addition to daily per-account limits. Proposed burst limit: five submissions per minute.
+- Apply a modest per-IP mutation rate limit in addition to daily per-account limits. Burst limit: fifteen submissions per minute.
 
 First confirmed success returns HTTP `201`:
 
