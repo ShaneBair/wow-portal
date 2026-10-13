@@ -2,7 +2,6 @@ const DEFAULT_MAX_GOLD_PER_REQUEST = 10_000;
 const DEFAULT_DAILY_GOLD_LIMIT = 20_000;
 const DEFAULT_DAILY_REQUEST_LIMIT = 5;
 const MAX_COMMAND_GOLD = 214_748;
-const MAX_ITEM_DELIVERY_QUANTITY = 10_000;
 
 export interface MoneyBoostConfig {
   enabled: boolean;
@@ -26,7 +25,6 @@ export interface CharacterLevelBoostConfig {
 
 export interface ItemDeliveryBoostConfig {
   enabled: boolean;
-  maximumQuantity: number;
 }
 
 export interface FlightPathsBoostConfig {
@@ -135,19 +133,10 @@ export function readCharacterLevelBoostConfig(
 export function readItemDeliveryBoostConfig(
   environment: NodeJS.ProcessEnv = process.env
 ): ItemDeliveryBoostConfig {
-  if (environment.BOOST_ITEM_DELIVERY_MAX_QUANTITY === undefined) {
-    throw new BoostConfigurationError("BOOST_ITEM_DELIVERY_MAX_QUANTITY is required.");
-  }
   return {
     enabled: readEnabled(
       environment.BOOST_ITEM_DELIVERY_ENABLED,
       "BOOST_ITEM_DELIVERY_ENABLED"
-    ),
-    maximumQuantity: readPositiveInteger(
-      environment.BOOST_ITEM_DELIVERY_MAX_QUANTITY,
-      200,
-      "BOOST_ITEM_DELIVERY_MAX_QUANTITY",
-      MAX_ITEM_DELIVERY_QUANTITY
     )
   };
 }

@@ -45,7 +45,6 @@ export interface ItemDeliveryBoostMetadata {
   enabled: boolean;
   name: "Item Delivery Service";
   defaultQuantity: 1;
-  maximumQuantity: number;
   deliveryMethod: "mail";
 }
 
@@ -236,7 +235,6 @@ function parseOverview(value: unknown): BoostOverview | undefined {
     typeof itemDelivery.enabled !== "boolean" ||
     itemDelivery.name !== "Item Delivery Service" ||
     itemDelivery.defaultQuantity !== 1 ||
-    !isSafePositiveInteger(itemDelivery.maximumQuantity) ||
     itemDelivery.deliveryMethod !== "mail" ||
     typeof flightPaths.enabled !== "boolean" ||
     flightPaths.name !== "Flight Risk" ||
@@ -278,7 +276,6 @@ function parseOverview(value: unknown): BoostOverview | undefined {
       enabled: itemDelivery.enabled,
       name: itemDelivery.name,
       defaultQuantity: itemDelivery.defaultQuantity,
-      maximumQuantity: itemDelivery.maximumQuantity,
       deliveryMethod: itemDelivery.deliveryMethod
     },
     flightPaths: {

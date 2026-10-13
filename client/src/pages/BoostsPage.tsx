@@ -122,7 +122,6 @@ export function BoostsPage() {
     refetchOnWindowFocus: true
   });
 
-  const configuredItemMaximum = overviewQuery.data?.itemDelivery.maximumQuantity ?? 0;
   const parsedItemId = parseDigits(itemIdText, 0xffff_ffff);
 
   useEffect(() => {
@@ -387,14 +386,18 @@ export function BoostsPage() {
   const moneyControlsDisabled = moneyMutation.isPending || unknownLocked;
   const currentItem = itemLookupQuery.data?.id === parsedItemId ? itemLookupQuery.data : undefined;
   const lookupMatchesInput = itemLookupId === parsedItemId;
-  const parsedQuantity = parseDigits(quantityText, currentItem?.maximumQuantity ?? configuredItemMaximum);
+  const parsedQuantity = currentItem
+    ? parseDigits(quantityText, currentItem.maximumQuantity)
+    : undefined;
   const itemIdValidation = itemIdText.length === 0
     ? "Enter an item ID."
     : parsedItemId === undefined ? "Enter a whole item ID using digits only." : undefined;
   const quantityValidation = quantityText.length === 0
     ? "Enter a quantity."
-    : parsedQuantity === undefined
-      ? `Enter a whole quantity from 1 through ${(currentItem?.maximumQuantity ?? configuredItemMaximum).toLocaleString()}.`
+    : !currentItem
+      ? "Look up a valid item before entering a quantity."
+      : parsedQuantity === undefined
+        ? `Enter a whole quantity from 1 through ${currentItem.maximumQuantity.toLocaleString()}.`
       : undefined;
   const itemControlsDisabled = itemMutation.isPending || itemUnknownLocked || !itemDelivery?.enabled;
   const canSubmitMoney = Boolean(
@@ -671,7 +674,7 @@ export function BoostsPage() {
           <p id="boost-item-quantity-help" className="field-help">
             {currentItem
               ? `Maximum ${currentItem.maximumQuantity.toLocaleString()} for this item.`
-              : `Maximum ${configuredItemMaximum.toLocaleString()} before item-specific limits.`}
+              : "The item-specific maximum appears after lookup."}
           </p>
           {showItemValidation && quantityValidation && <p id="boost-item-quantity-error" className="message error">{quantityValidation}</p>}
           {!itemConfirmation && <button ref={sendItemButton} type="button" disabled={!canStartItemDelivery} onClick={startItemConfirmation}>

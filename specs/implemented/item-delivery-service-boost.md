@@ -1,6 +1,6 @@
 # Item Delivery Service Boost
 
-Status: Draft for owner review
+Status: Implemented
 
 Repository: `wow-portal`
 
@@ -98,30 +98,23 @@ A request is eligible only when:
 - the request has an authenticated portal session, allowed origin, and valid CSRF token;
 - the selected non-deleted character still belongs to the authenticated account;
 - `itemId` resolves to an existing `item_template` row;
-- `quantity` is a positive JSON integer;
-- the quantity does not exceed the configured absolute maximum;
+- `quantity` is a positive JSON integer within the unsigned count range supported by the database and core command;
 - the quantity can be represented in at most twelve mail attachment stacks;
 - when the template's `maxcount` is positive, the requested quantity does not exceed it;
 - the shared boost mutation limiter accepts the request; and
 - portal-state, world-item lookup, character-read, SOAP, and mail-reconciliation dependencies are available.
 
-Recommended initial absolute maximum:
-
-```text
-BOOST_ITEM_DELIVERY_MAX_QUANTITY=200
-```
-
 For an item, calculate the effective maximum as:
 
 ```text
 min(
-  configured absolute maximum,
   item maximum stack size * 12,
-  positive item maxcount when one exists
+  positive item maxcount when one exists,
+  unsigned command/database count maximum
 )
 ```
 
-This prevents the portal from issuing a command that exceeds WotLK's twelve-attachment mail limit. `send items` remains authoritative and independently revalidates the template and count.
+There is no additional portal-wide quantity ceiling. This allows bulk delivery such as `3,000` arrows when the item's stack size fits the quantity into no more than twelve attachments. Items with small stack sizes still have a smaller one-mail maximum. This prevents the portal from issuing a command that exceeds WotLK's twelve-attachment mail limit. `send items` remains authoritative and independently revalidates the template and count.
 
 Version 1 has no per-character, per-account, daily, or lifetime claim quota. Every deliberate request uses a new UUID. The existing shared per-IP mutation limiter remains operational protection. The owner should enable this only with the understanding that authenticated users may create powerful, rare, quest, bind-on-pickup, or economy-altering items when they know the entry.
 
@@ -169,13 +162,12 @@ Extend the authenticated `GET /api/boosts` response with:
     "enabled": false,
     "name": "Item Delivery Service",
     "defaultQuantity": 1,
-    "maximumQuantity": 200,
     "deliveryMethod": "mail"
   }
 }
 ```
 
-This exposes presentation metadata and the configured absolute ceiling, not proof that a particular item is deliverable. Missing or invalid configuration disables only this card. Preserve existing protected-query cache clearing and `Cache-Control: no-store` behavior.
+This exposes presentation metadata, not proof that a particular item is deliverable. The item lookup response supplies the authoritative item-specific maximum. Missing or invalid configuration disables only this card. Preserve existing protected-query cache clearing and `Cache-Control: no-store` behavior.
 
 ## Mutation API
 
@@ -352,13 +344,12 @@ Add server-only portal settings to `.env.example`:
 
 ```text
 BOOST_ITEM_DELIVERY_ENABLED=false
-BOOST_ITEM_DELIVERY_MAX_QUANTITY=200
 PORTAL_WORLD_DATABASE=world_database
 ```
 
 Requirements:
 
-- missing or invalid enablement/max values fail this card closed;
+- invalid enablement fails this card closed;
 - examples contain placeholders only;
 - item entry and quantity remain request data, not environment values;
 - `PORTAL_WORLD_DATABASE` belongs to the authenticated portal database connection and is not coupled to the statistics credential or `STATS_WORLD_DATABASE`; and
@@ -409,13 +400,13 @@ The private SOAP account reuses only `RBAC_PERM_COMMAND_SEND_ITEMS`. No custom c
 ## Migration and Deployment
 
 1. Add and review the portal `item_delivery_requests` migration.
-2. Add `PORTAL_WORLD_DATABASE` and the disabled feature settings to `.env.example` and production configuration without exposing credentials.
+2. Add `PORTAL_WORLD_DATABASE` and the disabled feature setting to `.env.example` and production configuration without exposing credentials.
 3. Grant the portal only the documented world lookup, portal-state, and mail-reconciliation permissions.
 4. Confirm the private SOAP account has `RBAC_PERM_COMMAND_SEND_ITEMS` without a broader administrative role.
 5. Deploy the portal with item delivery disabled. No game-server rebuild is required.
 6. Run automated tests with mocked database/SOAP boundaries.
 7. Run authorized live checks for online and offline recipients, replay, conflicts, invalid entries, stack limits, and ambiguous results.
-8. Enable only after the owner accepts the power/economy implications and final quantity maximum.
+8. Enable only after the owner accepts the power/economy implications and item-specific core limits.
 
 Rollback first disables `BOOST_ITEM_DELIVERY_ENABLED`, then restores the prior portal build if needed. Preserve request rows required for reconciliation. Rollback never removes delivered items or mail.
 
@@ -428,7 +419,7 @@ Rollback first disables `BOOST_ITEM_DELIVERY_ENABLED`, then restores the prior p
 - Every accepted request sends the complete quantity through AzerothCore in-game mail.
 - Delivery works whether the selected character is online or offline.
 - The implementation uses the existing `send items` command and requires no AzerothCore code/module change or worldserver rebuild.
-- Unknown items and quantities exceeding the absolute, stack, attachment, or positive `maxcount` limit are rejected before SOAP.
+- Unknown items and quantities exceeding the unsigned command/database, stack, attachment, or positive `maxcount` limit are rejected before SOAP.
 - Character ownership, item validity, and quantity are rechecked server-side on POST.
 - Exact UUID replay never sends additional mail; conflicting reuse is rejected.
 - Ambiguous delivery never becomes false success or automatic resend.
@@ -444,7 +435,7 @@ Server tests cover:
 
 - strict item-ID/quantity parsing and exact request shape;
 - authenticated item lookup, unknown item, configured world schema, output-field stripping, and lookup limiting;
-- effective maximum calculations for stack size, twelve attachments, positive `maxcount`, and absolute cap;
+- effective maximum calculations for stack size, twelve attachments, positive `maxcount`, and the unsigned command/database cap;
 - ownership, auth, origin, CSRF, feature flag, mutation limiter, and dependency failures before SOAP;
 - safe `send items` construction from canonical server data;
 - exact success and known/unknown output classification using deployed-core fixtures;
@@ -483,10 +474,9 @@ Automated tests never contact SOAP, mutate a live database, or send live mail.
 
 ## Owner Decisions
 
-1. Approve or replace the recommended absolute maximum of 200 items per request.
-2. Confirm that any valid item template is eligible, including rare, bind-on-pickup, quest, and economy-altering items, subject to core rules and quantity limits.
-3. Approve the fixed subject `Item Delivery Service` and request-ID mail body.
-4. Approve a 90-day minimum retention period for completed request rows.
+1. Confirm that any valid item template is eligible, including rare, bind-on-pickup, quest, and economy-altering items, subject to core rules and quantity limits.
+2. Approve the fixed subject `Item Delivery Service` and request-ID mail body.
+3. Approve a 90-day minimum retention period for completed request rows.
 
 ## Primary References
 

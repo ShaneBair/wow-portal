@@ -54,7 +54,6 @@ const itemDelivery = {
   enabled: true,
   name: "Item Delivery Service" as const,
   defaultQuantity: 1 as const,
-  maximumQuantity: 200,
   deliveryMethod: "mail" as const
 };
 const flightPaths = { enabled: true, name: "Flight Risk" as const, requiresOffline: true as const };
@@ -84,7 +83,7 @@ interface TestService {
   readPortableHolesConfig(): { enabled: boolean };
   readArcaneTomeConfig(): { enabled: boolean };
   readCharacterLevelConfig(): { enabled: boolean };
-  readItemDeliveryConfig(): { enabled: boolean; maximumQuantity: number };
+  readItemDeliveryConfig(): { enabled: boolean };
   readFlightPathsConfig(): { enabled: boolean };
   getOverview(accountId: number): Promise<{
     characters: Array<{ id: string; name: string; level: number; race: string; class: string; online: boolean }>;
@@ -147,7 +146,7 @@ async function withBoostServer<T>(
     readPortableHolesConfig: () => ({ enabled: true }),
     readArcaneTomeConfig: () => ({ enabled: true }),
     readCharacterLevelConfig: () => ({ enabled: true }),
-    readItemDeliveryConfig: () => ({ enabled: true, maximumQuantity: 200 }),
+    readItemDeliveryConfig: () => ({ enabled: true }),
     readFlightPathsConfig: () => ({ enabled: true }),
     getOverview: async (accountId) => {
       assert.equal(accountId, 7);

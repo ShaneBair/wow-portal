@@ -332,8 +332,8 @@ authoritative reconciliation, and the documented check-to-command race are verif
 Item Delivery Service resolves a user-entered item entry through the configured world database and
 mails a bounded quantity with AzerothCore's existing `send items` command. Apply
 `migrations/005_create_item_delivery_requests.sql`, then apply the narrowly scoped grants from
-`migrations/005_grant_item_delivery_permissions.sql.example`. Configure `PORTAL_WORLD_DATABASE`
-and `BOOST_ITEM_DELIVERY_MAX_QUANTITY`; keep `BOOST_ITEM_DELIVERY_ENABLED=false` until migration,
+`migrations/005_grant_item_delivery_permissions.sql.example`. Configure `PORTAL_WORLD_DATABASE`;
+keep `BOOST_ITEM_DELIVERY_ENABLED=false` until migration,
 grants, deployed command output, replay, and mail reconciliation are verified. This feature does
 not require an AzerothCore module or worldserver rebuild.
 

@@ -21,7 +21,7 @@ import {
 import { BoostRequestError } from "../src/services/player-boosts.js";
 
 const requestId = "d68083f4-44f2-4fb7-890c-1c107ef16e50";
-const config = { enabled: true, maximumQuantity: 200 };
+const config = { enabled: true };
 const characterRow = { guid: 42, name: "Thalgrim", level: 80, race: 3, class: 2, online: 0 };
 const itemRow = { id: 41599, name: "Frostweave Bag", quality: 2, stackSize: 20, maxCount: 0 };
 const record: ItemDeliveryRecord = {
@@ -73,20 +73,17 @@ function serviceWith(repository = new FakeRepository(), overrides: {
   });
 }
 
-test("item-delivery configuration fails closed and validates its ceiling", () => {
-  assert.throws(() => readItemDeliveryBoostConfig({}), /MAX_QUANTITY is required/u);
+test("item-delivery configuration fails closed and validates its feature flag", () => {
+  assert.deepEqual(readItemDeliveryBoostConfig({}), { enabled: false });
   assert.deepEqual(readItemDeliveryBoostConfig({
-    BOOST_ITEM_DELIVERY_ENABLED: "false",
-    BOOST_ITEM_DELIVERY_MAX_QUANTITY: "200"
-  }), { enabled: false, maximumQuantity: 200 });
+    BOOST_ITEM_DELIVERY_ENABLED: "false"
+  }), { enabled: false });
   assert.throws(() => readItemDeliveryBoostConfig({
-    BOOST_ITEM_DELIVERY_ENABLED: "yes",
-    BOOST_ITEM_DELIVERY_MAX_QUANTITY: "200"
+    BOOST_ITEM_DELIVERY_ENABLED: "yes"
   }), /true or false/u);
-  assert.throws(() => readItemDeliveryBoostConfig({
-    BOOST_ITEM_DELIVERY_ENABLED: "true",
-    BOOST_ITEM_DELIVERY_MAX_QUANTITY: "0"
-  }), /positive whole number/u);
+  assert.deepEqual(readItemDeliveryBoostConfig({
+    BOOST_ITEM_DELIVERY_ENABLED: "true"
+  }), { enabled: true });
 });
 
 test("builds a bounded parameterized world lookup and strips private columns", () => {
@@ -101,11 +98,12 @@ test("builds a bounded parameterized world lookup and strips private columns", (
   assert.throws(() => buildItemTemplateQuery("world`; DROP TABLE item_template", 41599), /ASCII letters/u);
 });
 
-test("calculates item-specific maxima from absolute, stack, attachment, and maxcount limits", () => {
-  assert.equal(calculateItemMaximum({ stackSize: 20, maxCount: 0 }, 200), 200);
-  assert.equal(calculateItemMaximum({ stackSize: 5, maxCount: 0 }, 200), 60);
-  assert.equal(calculateItemMaximum({ stackSize: 20, maxCount: 7 }, 200), 7);
-  assert.equal(calculateItemMaximum({ stackSize: 20, maxCount: 500 }, 50), 50);
+test("calculates item-specific maxima from stack, attachment, maxcount, and command limits", () => {
+  assert.equal(calculateItemMaximum({ stackSize: 20, maxCount: 0 }), 240);
+  assert.equal(calculateItemMaximum({ stackSize: 5, maxCount: 0 }), 60);
+  assert.equal(calculateItemMaximum({ stackSize: 1_000, maxCount: 0 }), 12_000);
+  assert.equal(calculateItemMaximum({ stackSize: 20, maxCount: 7 }), 7);
+  assert.equal(calculateItemMaximum({ stackSize: 0xffff_ffff, maxCount: 0 }), 0xffff_ffff);
 });
 
 test("accepts only decimal lookup IDs and exact integer mutation fields", () => {
@@ -113,15 +111,15 @@ test("accepts only decimal lookup IDs and exact integer mutation fields", () => 
   for (const value of ["041599", "1e3", "1.5", " 1", "-1", "4294967296", 1.5]) {
     assert.equal(parseItemId(value), undefined);
   }
-  assert.deepEqual(parseItemDeliveryInput({ requestId, characterId: "42", itemId: 41599, quantity: 4 }, config), {
-    requestId, characterId: "42", itemId: 41599, quantity: 4
+  assert.deepEqual(parseItemDeliveryInput({ requestId, characterId: "42", itemId: 41599, quantity: 3_000 }), {
+    requestId, characterId: "42", itemId: 41599, quantity: 3_000
   });
   for (const body of [
     { requestId, characterId: "42", itemId: "41599", quantity: 4 },
     { requestId, characterId: "42", itemId: 41599, quantity: 0 },
-    { requestId, characterId: "42", itemId: 41599, quantity: 201 },
+    { requestId, characterId: "42", itemId: 41599, quantity: 0x1_0000_0000 },
     { requestId, characterId: "42", itemId: 41599, quantity: 4, command: "send items" }
-  ]) assert.equal(parseItemDeliveryInput(body, config), undefined);
+  ]) assert.equal(parseItemDeliveryInput(body), undefined);
   assert.equal(isCanonicalItemDeliveryJson(
     `{"requestId":"${requestId}","characterId":"42","itemId":41599,"quantity":4}`
   ), true);
@@ -135,10 +133,11 @@ test("accepts only decimal lookup IDs and exact integer mutation fields", () => 
 
 test("constructs one fixed command and classifies only compatible output", () => {
   assert.equal(
-    buildSendItemDeliveryCommand("Thalgrim", requestId, 41599, 4),
-    `send items Thalgrim "Item Delivery Service" "Items requested through the portal. Request ID: ${requestId}" 41599:4`
+    buildSendItemDeliveryCommand("Thalgrim", requestId, 2515, 3_000),
+    `send items Thalgrim "Item Delivery Service" "Items requested through the portal. Request ID: ${requestId}" 2515:3000`
   );
   assert.throws(() => buildSendItemDeliveryCommand("Bad Name", requestId, 41599, 4), /not safe/u);
+  assert.throws(() => buildSendItemDeliveryCommand("Thalgrim", requestId, 41599, 0x1_0000_0000), /invalid/u);
   assert.equal(classifyItemDeliveryCommandResult(
     { ok: true, output: "Mail sent to Thalgrim\r\n" }, "Thalgrim", 41599, 4
   ), "sent");
@@ -157,7 +156,7 @@ test("looks up previews and revalidates item limits and ownership before reservi
   const repository = new FakeRepository();
   const service = serviceWith(repository);
   assert.deepEqual(await service.lookupItem(41599), {
-    id: 41599, name: "Frostweave Bag", quality: 2, maximumQuantity: 200
+    id: 41599, name: "Frostweave Bag", quality: 2, maximumQuantity: 240
   });
   await assert.rejects(
     serviceWith(repository, { itemRows: [] }).requestItem(7, { requestId, characterId: "42", itemId: 41599, quantity: 4 }),

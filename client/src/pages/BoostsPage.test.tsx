@@ -48,7 +48,6 @@ const overview = {
     enabled: true,
     name: "Item Delivery Service",
     defaultQuantity: 1,
-    maximumQuantity: 200,
     deliveryMethod: "mail"
   },
   flightPaths: { enabled: true, name: "Flight Risk", requiresOffline: true }

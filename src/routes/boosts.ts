@@ -354,7 +354,7 @@ export function createBoostsRouter(dependencies: BoostsRouterDependencies = {}):
       console.error(`Item delivery configuration failed (${errorKind}).`);
       return response.status(503).json({ error: UNAVAILABLE_MESSAGE });
     }
-    const input = parseItemDeliveryInput(request.body, config);
+    const input = parseItemDeliveryInput(request.body);
     if (!input) return response.status(400).json({ error: INVALID_ITEM_DELIVERY_REQUEST_MESSAGE });
     if (!config.enabled) return response.status(503).json({ error: "This boost is currently unavailable." });
     if (!limiter.consume(request.ip ?? "unknown")) {

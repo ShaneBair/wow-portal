@@ -28,7 +28,6 @@ import { getPortalDatabase, validatePortalDatabaseIdentifier } from "./portal-da
 const QUERY_TIMEOUT_MS = 8_000;
 const MAX_ITEM_ENTRY = 0xffff_ffff;
 const MAX_MAIL_ATTACHMENTS = 12;
-const DEFAULT_MAXIMUM_QUANTITY = 200;
 const PENDING_STALE_MS = 15_000;
 export const ITEM_DELIVERY_BOOST_KEY = "item-delivery-v1";
 export const ITEM_DELIVERY_NAME = "Item Delivery Service";
@@ -39,7 +38,6 @@ export interface ItemDeliveryMetadata {
   enabled: boolean;
   name: typeof ITEM_DELIVERY_NAME;
   defaultQuantity: 1;
-  maximumQuantity: number;
   deliveryMethod: "mail";
 }
 
@@ -138,14 +136,10 @@ export function mapItemTemplateRows(rows: unknown, expectedItemId: number): Item
 }
 
 export function calculateItemMaximum(
-  item: Pick<ItemTemplate, "stackSize" | "maxCount">,
-  configuredMaximum: number
+  item: Pick<ItemTemplate, "stackSize" | "maxCount">
 ): number {
-  if (!Number.isSafeInteger(configuredMaximum) || configuredMaximum < 1) {
-    throw new BoostDataError("Item delivery maximum is invalid.");
-  }
-  const attachmentMaximum = Math.min(Number.MAX_SAFE_INTEGER, item.stackSize * MAX_MAIL_ATTACHMENTS);
-  return Math.min(configuredMaximum, attachmentMaximum, item.maxCount > 0 ? item.maxCount : Number.MAX_SAFE_INTEGER);
+  const attachmentMaximum = Math.min(MAX_ITEM_ENTRY, item.stackSize * MAX_MAIL_ATTACHMENTS);
+  return Math.min(attachmentMaximum, item.maxCount > 0 ? item.maxCount : MAX_ITEM_ENTRY);
 }
 
 export function parseItemId(value: unknown): number | undefined {
@@ -160,8 +154,7 @@ export function parseItemId(value: unknown): number | undefined {
 }
 
 export function parseItemDeliveryInput(
-  body: unknown,
-  config: ItemDeliveryBoostConfig
+  body: unknown
 ): ItemDeliveryInput | undefined {
   if (typeof body !== "object" || body === null || Array.isArray(body)) return undefined;
   const source = body as Record<string, unknown>;
@@ -171,7 +164,7 @@ export function parseItemDeliveryInput(
     !isValidBoostRequestId(source.requestId) || parseBoostCharacterId(source.characterId) === undefined ||
     typeof source.itemId !== "number" || parseItemId(source.itemId) === undefined ||
     typeof source.quantity !== "number" || !Number.isInteger(source.quantity) ||
-    source.quantity < 1 || source.quantity > config.maximumQuantity
+    source.quantity < 1 || source.quantity > MAX_ITEM_ENTRY
   ) return undefined;
   return {
     requestId: source.requestId,
@@ -208,7 +201,7 @@ export function buildSendItemDeliveryCommand(
   if (!isSafeBoostCharacterName(characterName)) {
     throw new BoostDataError("Boost character name is not safe for the compatible command parser.");
   }
-  if (parseItemId(itemId) === undefined || !Number.isInteger(quantity) || quantity < 1 || quantity > 10_000) {
+  if (parseItemId(itemId) === undefined || !Number.isInteger(quantity) || quantity < 1 || quantity > MAX_ITEM_ENTRY) {
     throw new BoostDataError("Item delivery command values are invalid.");
   }
   return `send items ${characterName} "${MAIL_SUBJECT}" "${itemDeliveryMailBody(requestId)}" ${itemId}:${quantity}`;
@@ -241,13 +234,12 @@ export function itemDeliveryMetadata(config: ItemDeliveryBoostConfig): ItemDeliv
     enabled: config.enabled,
     name: ITEM_DELIVERY_NAME,
     defaultQuantity: 1,
-    maximumQuantity: config.maximumQuantity,
     deliveryMethod: "mail"
   };
 }
 
 function unavailableMetadata(): ItemDeliveryMetadata {
-  return itemDeliveryMetadata({ enabled: false, maximumQuantity: DEFAULT_MAXIMUM_QUANTITY });
+  return itemDeliveryMetadata({ enabled: false });
 }
 
 function pluralizedItemName(name: string, quantity: number): string {
@@ -317,7 +309,7 @@ export class ItemDeliveryService {
       id: item.id,
       name: item.name,
       quality: item.quality,
-      maximumQuantity: calculateItemMaximum(item, config.maximumQuantity)
+      maximumQuantity: calculateItemMaximum(item)
     } : undefined;
   }
 
@@ -325,11 +317,11 @@ export class ItemDeliveryService {
     const config = this.getConfig();
     this.getWorldDatabase();
     if (!config.enabled) throw new BoostRequestError("disabled", "This boost is currently unavailable.");
-    const validated = parseItemDeliveryInput(input, config);
+    const validated = parseItemDeliveryInput(input);
     if (!validated) throw new BoostRequestError("invalid", "Enter a valid character, request ID, item ID, and quantity.");
     const item = mapItemTemplateRows(await this.queryItem(validated.itemId), validated.itemId);
     if (!item) throw new BoostRequestError("not-found", "That item could not be found.");
-    const maximumQuantity = calculateItemMaximum(item, config.maximumQuantity);
+    const maximumQuantity = calculateItemMaximum(item);
     if (validated.quantity > maximumQuantity) {
       throw new BoostRequestError("invalid", `Enter a quantity from 1 through ${maximumQuantity}.`);
     }
