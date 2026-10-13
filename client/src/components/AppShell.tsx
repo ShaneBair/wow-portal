@@ -19,6 +19,7 @@ export function AppShell() {
           <NavLink to="/" end>Home</NavLink>
           <NavLink to="/stats">Stats</NavLink>
           {authenticatedSession && <NavLink to="/roster" end>Roster</NavLink>}
+          {authenticatedSession && <NavLink to="/armory">Armory</NavLink>}
           <NavLink to="/boosts" end>Boosts</NavLink>
         </nav>
         <div className="auth-actions" aria-label="Portal account">

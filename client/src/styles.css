@@ -720,6 +720,370 @@ code {
   table-layout: fixed;
 }
 
+/* Authenticated character armory */
+.armory-picker {
+  margin-bottom: 20px;
+}
+
+.armory-picker label {
+  max-width: 680px;
+}
+
+.armory-prompt {
+  padding: 28px 0;
+  text-align: center;
+}
+
+.armory-character-header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  margin: 34px 0 20px;
+  padding: 0 4px;
+}
+
+.armory-character-header h2 {
+  margin: 0;
+  font-size: clamp(2rem, 5vw, 3.8rem);
+  line-height: 1;
+}
+
+.armory-character-header p {
+  margin-bottom: 0;
+  color: #aeb7c4;
+}
+
+.armory-saved-note {
+  font-size: .82rem;
+}
+
+.armory-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr);
+  align-items: start;
+  gap: 20px;
+}
+
+.armory-section-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 22px;
+}
+
+.armory-section-heading h2,
+.armory-section-heading p {
+  margin-bottom: 0;
+}
+
+.armory-section-heading > p {
+  color: #9da8b7;
+  font-size: .82rem;
+  text-align: right;
+}
+
+.armory-equipment-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.armory-slot {
+  position: relative;
+  min-width: 0;
+  min-height: 78px;
+  border: 1px solid #29313d;
+  border-radius: 12px;
+  padding: 9px;
+  background: #0c1118;
+}
+
+.armory-slot-name {
+  display: block;
+  margin: 0 0 6px;
+  color: #7f8a9a;
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.armory-empty-slot {
+  color: #657182;
+  font-size: .9rem;
+}
+
+.armory-item-hover {
+  position: relative;
+}
+
+.armory-item-button {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 0;
+  border: 0;
+  border-left: 3px solid #687385;
+  border-radius: 0;
+  background: transparent;
+  color: #f4f6f8;
+  text-align: left;
+}
+
+.armory-item-button:hover {
+  background: #151c26;
+}
+
+.armory-item-button strong,
+.armory-item-button small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.armory-item-button small {
+  margin-top: 3px;
+  color: #8f9aaa;
+  font-size: .7rem;
+}
+
+.armory-item-glyph {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid #3b4656;
+  border-radius: 7px;
+  background: #171e28;
+  color: #aeb7c4;
+  font-size: .66rem;
+  font-weight: 900;
+}
+
+.armory-hover-tooltip {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 8px);
+  left: 8px;
+  display: none;
+  width: min(310px, calc(100vw - 54px));
+  border: 1px solid #8995a7;
+  border-radius: 6px;
+  padding: 14px;
+  background: rgba(5, 8, 13, .98);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, .62), inset 0 0 0 1px #202938;
+  color: #fff;
+  pointer-events: none;
+}
+
+.armory-item-hover:hover .armory-hover-tooltip,
+.armory-item-hover:focus-within .armory-hover-tooltip {
+  display: block;
+}
+
+.armory-item-details {
+  font-family: Arial, sans-serif;
+  font-size: .84rem;
+  line-height: 1.42;
+}
+
+.armory-item-details > strong {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 1rem;
+}
+
+.armory-tooltip-columns {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.armory-socket {
+  color: #9ea8b6;
+}
+
+.armory-socket > span {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 4px;
+  border: 1px solid #758195;
+  border-radius: 50%;
+  background: #202936;
+}
+
+.armory-item-description {
+  margin-top: 5px;
+  color: #ffd100;
+}
+
+.armory-quality-0 { color: #9d9d9d; }
+.armory-quality-1 { color: #fff; }
+.armory-quality-2 { color: #1eff00; }
+.armory-quality-3 { color: #0070dd; }
+.armory-quality-4 { color: #a335ee; }
+.armory-quality-5 { color: #ff8000; }
+.armory-quality-6 { color: #e6cc80; }
+.armory-quality-7 { color: #00ccff; }
+.armory-quality-border-0 { border-left-color: #9d9d9d; }
+.armory-quality-border-1 { border-left-color: #fff; }
+.armory-quality-border-2 { border-left-color: #1eff00; }
+.armory-quality-border-3 { border-left-color: #0070dd; }
+.armory-quality-border-4 { border-left-color: #a335ee; }
+.armory-quality-border-5 { border-left-color: #ff8000; }
+.armory-quality-border-6 { border-left-color: #e6cc80; }
+.armory-quality-border-7 { border-left-color: #00ccff; }
+
+.armory-dialog-backdrop {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, .74);
+}
+
+.armory-item-dialog {
+  position: relative;
+  width: min(390px, 100%);
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  border: 1px solid #8995a7;
+  border-radius: 10px;
+  padding: 24px;
+  background: #080c12;
+  box-shadow: 0 24px 80px #000;
+}
+
+.armory-dialog-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 44px;
+  min-height: 44px;
+  padding: 0;
+  background: transparent;
+  color: #dbe2eb;
+  font-size: 1.5rem;
+}
+
+.armory-wowhead-link {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  margin-top: 18px;
+  color: #8eb4ff;
+  font-weight: 800;
+}
+
+.armory-loadouts {
+  display: grid;
+  gap: 16px;
+}
+
+.armory-loadout {
+  border: 1px solid #29313d;
+  border-radius: 13px;
+  padding: 18px;
+  background: #0c1118;
+}
+
+.armory-loadout > h3 {
+  margin: 0;
+}
+
+.armory-loadout > p {
+  margin: 5px 0 15px;
+  color: #9da8b7;
+  font-size: .84rem;
+}
+
+.armory-active-badge {
+  display: inline-block;
+  margin-left: 7px;
+  border: 1px solid #387653;
+  border-radius: 999px;
+  padding: 2px 8px;
+  background: #173426;
+  color: #73e2a1;
+  font-size: .65rem;
+  vertical-align: middle;
+}
+
+.armory-talent-trees {
+  display: grid;
+  gap: 14px;
+}
+
+.armory-talent-trees h4 {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 7px;
+  color: #dbe2eb;
+}
+
+.armory-talent-trees h4 span {
+  color: #8eb4ff;
+}
+
+.armory-talent-trees ul {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.armory-talent-trees li {
+  display: flex;
+  min-width: 0;
+  justify-content: space-between;
+  gap: 12px;
+  color: #9da8b7;
+  font-size: .84rem;
+}
+
+.armory-talent-trees a {
+  overflow: hidden;
+  color: #d5dce6;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 980px) {
+  .armory-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .armory-character-header,
+  .armory-section-heading {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .armory-section-heading > p {
+    text-align: left;
+  }
+
+  .armory-equipment-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .armory-hover-tooltip {
+    display: none !important;
+  }
+}
+
 .boost-character-panel h2,
 .boost-card h2 {
   margin-bottom: 8px;

@@ -357,6 +357,21 @@ Keep the roster unavailable until the standard/full visibility scopes, authorita
 classification, query bounds, and deployed `EXPLAIN` plan have been verified with the portal
 database user. The public online-player panel remains separate and unchanged.
 
+## Authenticated character armory
+
+The protected `/armory` page lists visible, non-deleted characters belonging to human accounts and
+shows one selected character's latest saved equipment and talent loadouts. It uses the same
+universal account-visibility scope as the Roster and excludes every account in the Playerbots
+`playerbots_account_type` table. Item hover/focus and tap dialogs are rendered locally from
+AzerothCore data and link to the corresponding WotLK Wowhead item or spell page without exposing
+account identifiers.
+
+No schema migration, write grant, SOAP permission, module change, or worldserver rebuild is
+required. Apply only the column-scoped reads in
+`migrations/007_grant_armory_permissions.sql.example`. Talent labels are generated from the
+deployed WotLK DBC files with `scripts/generate-armory-talent-catalog.mjs`; regenerate and review
+the catalog when the deployed client/core data changes.
+
 ## Verification
 
 Run strict server/client builds and mocked server/frontend tests without contacting the live

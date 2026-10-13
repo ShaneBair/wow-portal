@@ -12,6 +12,10 @@ schema/account placeholders with the deployed `PORTAL_*` values and the existing
 host scope, and run it as a database administrator after migration `005`. Do not guess or broaden
 the account host scope; reuse the exact scope already assigned to the portal database account.
 
+The Armory has no schema migration. Before deploying it, copy
+`007_grant_armory_permissions.sql.example`, replace its schema/account placeholders with the
+deployed `PORTAL_*` values and exact existing account host scope, and apply only those read grants.
+
 Grant the application account only:
 
 - `SELECT`, `INSERT`, and `UPDATE` on `money_boost_requests` in the portal-state schema;
@@ -21,16 +25,17 @@ Grant the application account only:
 - `SELECT`, `INSERT`, and `UPDATE` on `item_delivery_requests` in the portal-state schema;
 - `SELECT`, `INSERT`, and `UPDATE` on `flight_path_boost_requests` in the portal-state schema;
 - column-level `SELECT` for `guid`, `account`, `name`, `level`, `race`, `class`, `online`,
-  `taximask`, and `deleteInfos_Name` on the AzerothCore `characters` table;
+  `taximask`, `talentGroupsCount`, `activeTalentGroup`, and `deleteInfos_Name` on the AzerothCore
+  `characters` table;
 - column-level `UPDATE` for only `characters.taximask`; this is the deliberate Flight Risk
   direct-character-write exception and requires the character to be offline;
 - column-level `SELECT` for `id`, `receiver`, `subject`, `body`, `has_items`, and `money` on the
   AzerothCore `mail` table;
 - column-level `SELECT` for `mail_id` and `item_guid` on the AzerothCore `mail_items` table;
-- column-level `SELECT` for `guid`, `itemEntry`, and `count` on the AzerothCore `item_instance`
-  table;
-- column-level `SELECT` for `entry`, `name`, `Quality`, `stackable`, and `maxcount` on the
-  AzerothCore world `item_template` table.
+- column-level `SELECT` for the documented Armory equipment columns on `character_inventory`,
+  `item_instance`, and `character_talent`;
+- column-level `SELECT` for the Item Delivery lookup columns and documented Armory tooltip columns
+  on the AzerothCore world `item_template` table.
 
 Keep its existing column-level authentication reads. The account-settings feature is the sole auth
 write exception: grant column-level `UPDATE` for only `account.salt` and `account.verifier` as

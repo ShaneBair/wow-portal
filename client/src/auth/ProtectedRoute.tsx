@@ -3,7 +3,7 @@ import { useAuth } from "./auth-context.js";
 
 export function ProtectedRoute({ children, returnTo }: {
   children: React.ReactNode;
-  returnTo: "/boosts" | "/roster" | "/settings";
+  returnTo: "/boosts" | "/roster" | "/armory" | "/settings";
 }) {
   const auth = useAuth();
   if (auth.isLoading) {

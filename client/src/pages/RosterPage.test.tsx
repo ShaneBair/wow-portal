@@ -69,7 +69,7 @@ describe("authenticated roster page", () => {
     expect(screen.getByLabelText("42 seconds").textContent).toBe("42s");
     const navigation = screen.getByRole("navigation", { name: "Primary" });
     expect(within(navigation).getAllByRole("link").map((link) => link.textContent)).toEqual([
-      "Home", "Stats", "Roster", "Boosts"
+      "Home", "Stats", "Roster", "Armory", "Boosts"
     ]);
     const rosterLink = screen.getByRole("link", { name: "Roster" });
     expect(rosterLink.getAttribute("aria-current")).toBe("page");

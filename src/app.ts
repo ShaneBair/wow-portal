@@ -25,6 +25,7 @@ import statsQuestBingeRouter from "./routes/stats-quest-binge.js";
 import statsDingDongDashRouter from "./routes/stats-ding-dong-dash.js";
 import { captureRawJsonBody } from "./services/raw-json-body.js";
 import rosterRouter from "./routes/roster.js";
+import armoryRouter from "./routes/armory.js";
 import statusRouter from "./routes/status.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -72,6 +73,7 @@ export function createApp(options: CreateAppOptions = {}): Express {
   app.use(statusRouter);
   app.use(onlinePlayersRouter);
   app.use(rosterRouter);
+  app.use(armoryRouter);
   app.use(statsDeathsRouter);
   app.use(statsBossKillsRouter);
   app.use(statsQuestCompletionsRouter);
@@ -97,7 +99,7 @@ export function createApp(options: CreateAppOptions = {}): Express {
   app.use(express.static(clientOutputDir, { index: false }));
 
   const sendClientIndex: RequestHandler = (request, response, next) => {
-    if (request.path === "/settings") {
+    if (request.path === "/settings" || request.path === "/armory" || request.path.startsWith("/armory/")) {
       response.set("Cache-Control", "no-store");
     }
     response.sendFile(path.join(clientOutputDir, "index.html"), (error) => {
@@ -107,7 +109,8 @@ export function createApp(options: CreateAppOptions = {}): Express {
     });
   };
 
-  app.get(["/", "/stats", "/login", "/boosts", "/roster", "/settings"], sendClientIndex);
+  app.get(["/", "/stats", "/login", "/boosts", "/roster", "/armory", "/settings"], sendClientIndex);
+  app.get(/^\/armory\/[1-9]\d{0,9}$/u, sendClientIndex);
   app.get(/^\/stats\/[a-z0-9]+(?:-[a-z0-9]+)*$/u, sendClientIndex);
 
   return app;

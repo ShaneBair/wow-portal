@@ -6,8 +6,8 @@ import { PortalApiError } from "../api/portal.js";
 import { useAuth } from "../auth/auth-context.js";
 import { DocumentTitle } from "../components/DocumentTitle.js";
 
-function safeReturnPath(value: string | null): "/" | "/boosts" | "/roster" | "/settings" {
-  return value === "/boosts" || value === "/roster" || value === "/settings" ? value : "/";
+function safeReturnPath(value: string | null): "/" | "/boosts" | "/roster" | "/armory" | "/settings" {
+  return value === "/boosts" || value === "/roster" || value === "/armory" || value === "/settings" ? value : "/";
 }
 
 export function LoginPage() {

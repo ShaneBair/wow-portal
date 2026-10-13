@@ -1,0 +1,34 @@
+-- No schema migration is required. Replace placeholders and reuse the portal user's exact host scope.
+GRANT SELECT (`guid`, `account`, `name`, `level`, `race`, `class`, `talentGroupsCount`, `activeTalentGroup`, `deleteInfos_Name`)
+ON `PORTAL_CHARACTERS_DATABASE`.`characters`
+TO 'portal-user'@'portal-host';
+
+GRANT SELECT (`guid`, `bag`, `slot`, `item`)
+ON `PORTAL_CHARACTERS_DATABASE`.`character_inventory`
+TO 'portal-user'@'portal-host';
+
+GRANT SELECT (`guid`, `itemEntry`, `owner_guid`, `durability`)
+ON `PORTAL_CHARACTERS_DATABASE`.`item_instance`
+TO 'portal-user'@'portal-host';
+
+GRANT SELECT (`guid`, `spell`, `specMask`)
+ON `PORTAL_CHARACTERS_DATABASE`.`character_talent`
+TO 'portal-user'@'portal-host';
+
+GRANT SELECT (`account_id`)
+ON `PORTAL_PLAYERBOTS_DATABASE`.`playerbots_account_type`
+TO 'portal-user'@'portal-host';
+
+GRANT SELECT (
+  `entry`, `name`, `Quality`, `ItemLevel`, `RequiredLevel`, `InventoryType`, `bonding`,
+  `armor`, `block`, `MaxDurability`, `description`, `dmg_min1`, `dmg_max1`, `delay`,
+  `holy_res`, `fire_res`, `nature_res`, `frost_res`, `shadow_res`, `arcane_res`,
+  `socketColor_1`, `socketColor_2`, `socketColor_3`,
+  `stat_type1`, `stat_value1`, `stat_type2`, `stat_value2`,
+  `stat_type3`, `stat_value3`, `stat_type4`, `stat_value4`,
+  `stat_type5`, `stat_value5`, `stat_type6`, `stat_value6`,
+  `stat_type7`, `stat_value7`, `stat_type8`, `stat_value8`,
+  `stat_type9`, `stat_value9`, `stat_type10`, `stat_value10`
+)
+ON `PORTAL_WORLD_DATABASE`.`item_template`
+TO 'portal-user'@'portal-host';

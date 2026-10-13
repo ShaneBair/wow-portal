@@ -37,7 +37,8 @@ test("serves only allowlisted browser routes from the client output", async () =
   try {
     for (const route of [
       "/", "/stats", "/stats?population=bots", "/stats/most-deaths",
-      "/stats/not-a-registered-statistic?population=all", "/login", "/boosts", "/roster"
+      "/stats/not-a-registered-statistic?population=all", "/login", "/boosts", "/roster",
+      "/armory", "/armory/42"
     ]) {
       const response = await fetch(`${baseUrl}${route}`);
       const body = await response.text();
