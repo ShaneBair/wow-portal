@@ -368,9 +368,11 @@ account identifiers.
 
 No schema migration, write grant, SOAP permission, module change, or worldserver rebuild is
 required. Apply only the column-scoped reads in
-`migrations/007_grant_armory_permissions.sql.example`. Talent labels are generated from the
-deployed WotLK DBC files with `scripts/generate-armory-talent-catalog.mjs`; regenerate and review
-the catalog when the deployed client/core data changes.
+`migrations/007_grant_armory_permissions.sql.example`. Talent labels and character-level item
+scaling are generated from the deployed WotLK DBC files with
+`scripts/generate-armory-talent-catalog.mjs` and
+`scripts/generate-armory-scaling-catalog.mjs`; regenerate and review both catalogs when the
+deployed client/core data changes.
 
 ## Verification
 

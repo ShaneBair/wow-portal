@@ -26,7 +26,6 @@ export interface ArmoryItem {
   sockets: string[];
   resistances: ArmoryItemStat[];
   damage?: { minimum: number; maximum: number; speedSeconds: number; dps: number };
-  damageScalesWithLevel?: boolean;
   durability?: { current: number; maximum: number };
   description?: string;
 }
@@ -78,14 +77,13 @@ function parseStat(value: unknown): ArmoryItemStat | undefined {
 function parseItem(value: unknown): ArmoryItem | undefined {
   if (!record(value) || !exactKeys(value, [
     "entry", "name", "quality", "qualityName", "itemLevel", "requiredLevel", "inventoryType", "bonding",
-    "armor", "block", "stats", "sockets", "resistances", "damage", "damageScalesWithLevel", "durability", "description"
+    "armor", "block", "stats", "sockets", "resistances", "damage", "durability", "description"
   ]) || !integer(value.entry, 1, MAX_UINT32) || !text(value.name, 255) || !integer(value.quality, 0, 7) ||
     !text(value.qualityName, 32) || !integer(value.itemLevel, 0, 65_535) || !integer(value.requiredLevel, 0, 255) ||
     !text(value.inventoryType, 64) || (value.bonding !== undefined && !text(value.bonding, 64)) ||
     !integer(value.armor, 0, MAX_UINT32) || !integer(value.block, 0, MAX_UINT32) || !Array.isArray(value.stats) ||
     value.stats.length > 10 || !Array.isArray(value.sockets) || value.sockets.length > 3 ||
     !value.sockets.every((entry) => text(entry, 32)) || !Array.isArray(value.resistances) || value.resistances.length > 6 ||
-    (value.damageScalesWithLevel !== undefined && typeof value.damageScalesWithLevel !== "boolean") ||
     (value.description !== undefined && !text(value.description, 255, true))) return undefined;
   const stats = value.stats.map(parseStat);
   const resistances = value.resistances.map(parseStat);
@@ -108,9 +106,7 @@ function parseItem(value: unknown): ArmoryItem | undefined {
     itemLevel: value.itemLevel, requiredLevel: value.requiredLevel, inventoryType: value.inventoryType,
     ...(value.bonding !== undefined ? { bonding: value.bonding } : {}), armor: value.armor, block: value.block,
     stats: stats as ArmoryItemStat[], sockets: value.sockets as string[], resistances: resistances as ArmoryItemStat[],
-    ...(damage ? { damage } : {}),
-    ...(value.damageScalesWithLevel !== undefined ? { damageScalesWithLevel: value.damageScalesWithLevel } : {}),
-    ...(durability ? { durability } : {}),
+    ...(damage ? { damage } : {}), ...(durability ? { durability } : {}),
     ...(value.description !== undefined ? { description: value.description } : {})
   };
 }

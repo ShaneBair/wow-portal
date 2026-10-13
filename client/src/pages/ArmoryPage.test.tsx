@@ -18,9 +18,9 @@ const scalingItem = {
   entry: 44096,
   name: "Battleworn Thrash Blade",
   inventoryType: "One-Hand",
-  stats: [],
+  stats: [{ name: "Resilience rating", value: 3 }],
   sockets: [],
-  damageScalesWithLevel: true
+  damage: { minimum: 30.24, maximum: 56.16, speedSeconds: 2.4, dps: 18 }
 };
 const character = {
   ...summaries[0], generatedAt: "2026-10-13T16:00:00.000Z",
@@ -81,7 +81,7 @@ describe("authenticated armory page", () => {
     expect(within(dialog).getByRole("link", { name: "Open on Wowhead" }).getAttribute("href"))
       .toBe("https://www.wowhead.com/wotlk/item=16846");
     expect(screen.getByText("Improved Aspect of the Monkey")).toBeTruthy();
-    expect(screen.getAllByText("Damage scales with character level").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("30 - 56 Damage").length).toBeGreaterThan(0);
     expect(screen.getByRole("link", { name: "Improved Aspect of the Monkey" }).getAttribute("href"))
       .toBe("https://www.wowhead.com/wotlk/spell=19552");
     expect(screen.getByText("Active")).toBeTruthy();

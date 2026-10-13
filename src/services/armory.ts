@@ -1,5 +1,11 @@
 import type { RowDataPacket } from "mysql2/promise";
 import { WOTLK_TALENT_CATALOG } from "../data/wotlk-talent-catalog.js";
+import {
+  WOTLK_SCALING_DISTRIBUTIONS,
+  WOTLK_SCALING_VALUES,
+  type ArmoryScalingDistribution,
+  type ArmoryScalingValues
+} from "../data/wotlk-scaling-stat-catalog.js";
 import { getClassName, getRaceName, isKnownClass, isKnownRace } from "../domain/wotlk.js";
 import { buildAccountExclusionClause, type AccountVisibilityScope } from "./account-visibility.js";
 import {
@@ -76,7 +82,6 @@ export interface ArmoryItem {
   sockets: string[];
   resistances: ArmoryItemStat[];
   damage?: { minimum: number; maximum: number; speedSeconds: number; dps: number };
-  damageScalesWithLevel?: boolean;
   durability?: { current: number; maximum: number };
   description?: string;
 }
@@ -183,7 +188,9 @@ export function buildArmoryEquipmentQuery(config: ArmoryConfig, characterGuid: n
   return {
     sql: `SELECT ci.slot, ii.itemEntry, ii.durability,
   it.name, it.Quality AS quality, it.ItemLevel AS itemLevel, it.RequiredLevel AS requiredLevel,
-  it.InventoryType AS inventoryType, it.bonding, it.armor, it.block, it.MaxDurability AS maxDurability,
+  it.InventoryType AS inventoryType, it.bonding,
+  it.ScalingStatDistribution AS scalingDistribution, it.ScalingStatValue AS scalingValue,
+  it.armor, it.block, it.MaxDurability AS maxDurability,
   it.description, it.dmg_min1 AS damageMinimum, it.dmg_max1 AS damageMaximum, it.delay,
   it.holy_res AS holyResistance, it.fire_res AS fireResistance, it.nature_res AS natureResistance,
   it.frost_res AS frostResistance, it.shadow_res AS shadowResistance, it.arcane_res AS arcaneResistance,
@@ -273,14 +280,87 @@ export function mapArmoryCharacterRows(rows: unknown): ArmoryCharacterSummary[] 
   }).sort((left, right) => left.name.localeCompare(right.name, "en", { sensitivity: "base" }) || Number(left.id) - Number(right.id));
 }
 
-function mapStats(row: Record<string, unknown>): ArmoryItemStat[] {
+function addStat(stats: ArmoryItemStat[], type: number, value: number): void {
+  if (value === 0) return;
+  const name = STAT_NAMES[type] ?? `Stat ${type}`;
+  const existing = stats.find((stat) => stat.name === name);
+  if (existing) existing.value += value;
+  else stats.push({ name, value });
+}
+
+function mapStaticStats(row: Record<string, unknown>): ArmoryItemStat[] {
   const stats: ArmoryItemStat[] = [];
   for (let index = 1; index <= 10; index += 1) {
     const type = integer(row[`statType${index}`], `item stat type ${index}`, 0, 255);
     const value = integer(row[`statValue${index}`], `item stat value ${index}`, -1_000_000, 1_000_000);
-    if (value === 0) continue;
-    stats.push({ name: STAT_NAMES[type] ?? `Stat ${type}`, value });
+    addStat(stats, type, value);
   }
+  return stats;
+}
+
+interface ScalingContext {
+  mask: number;
+  distribution?: ArmoryScalingDistribution;
+  values: ArmoryScalingValues;
+}
+
+function getScalingMultiplier(values: ArmoryScalingValues, mask: number): number {
+  if (mask & 0x00000001) return values.multipliers[0] ?? 0;
+  if (mask & 0x00000002) return values.multipliers[1] ?? 0;
+  if (mask & 0x00000004) return values.multipliers[2] ?? 0;
+  if (mask & 0x00000008) return values.multiplier2;
+  if (mask & 0x00000010) return values.multipliers[3] ?? 0;
+  if (mask & 0x00040000) return values.multiplier3;
+  return 0;
+}
+
+function getScaledArmor(values: ArmoryScalingValues, mask: number): number {
+  if (mask & 0x00000020) return values.armor[0] ?? 0;
+  if (mask & 0x00000040) return values.armor[1] ?? 0;
+  if (mask & 0x00000080) return values.armor[2] ?? 0;
+  if (mask & 0x00000100) return values.armor[3] ?? 0;
+  if (mask & 0x00080000) return values.armor2[0] ?? 0;
+  if (mask & 0x00100000) return values.armor2[1] ?? 0;
+  if (mask & 0x00200000) return values.armor2[2] ?? 0;
+  if (mask & 0x00400000) return values.armor2[3] ?? 0;
+  if (mask & 0x00800000) return values.armor2[4] ?? 0;
+  return 0;
+}
+
+function getScaledDps(values: ArmoryScalingValues, mask: number): number {
+  if (mask & 0x00000200) return values.dps[0] ?? 0;
+  if (mask & 0x00000400) return values.dps[1] ?? 0;
+  if (mask & 0x00000800) return values.dps[2] ?? 0;
+  if (mask & 0x00001000) return values.dps[3] ?? 0;
+  if (mask & 0x00002000) return values.dps[4] ?? 0;
+  if (mask & 0x00004000) return values.dps[5] ?? 0;
+  return 0;
+}
+
+function getScalingContext(row: Record<string, unknown>, characterLevel: number): ScalingContext | undefined {
+  const distributionId = integer(row.scalingDistribution, "scaling distribution", 0, MAX_UINT32);
+  const mask = integer(row.scalingValue, "scaling value", 0, MAX_UINT32);
+  if (mask === 0) return undefined;
+  const distribution = distributionId === 0 ? undefined : WOTLK_SCALING_DISTRIBUTIONS[distributionId];
+  if (distributionId !== 0 && !distribution) throw new ArmoryDataError("Armory scaling distribution is unavailable.");
+  const scalingLevel = Math.min(characterLevel, distribution?.maxLevel ?? characterLevel);
+  const values = WOTLK_SCALING_VALUES[scalingLevel];
+  if (!values) throw new ArmoryDataError("Armory scaling values are unavailable.");
+  return { mask, ...(distribution ? { distribution } : {}), values };
+}
+
+function mapScaledStats(context: ScalingContext): ArmoryItemStat[] {
+  const stats: ArmoryItemStat[] = [];
+  if (context.distribution) {
+    const multiplier = getScalingMultiplier(context.values, context.mask);
+    for (let index = 0; index < 10; index += 1) {
+      const type = context.distribution.statTypes[index] ?? -1;
+      if (type < 0) continue;
+      const modifier = context.distribution.modifiers[index] ?? 0;
+      addStat(stats, type, Math.trunc((multiplier * modifier) / 10_000));
+    }
+  }
+  if (context.mask & 0x00008000) addStat(stats, 45, context.values.spellPower);
   return stats;
 }
 
@@ -302,8 +382,9 @@ function mapResistances(row: Record<string, unknown>): ArmoryItemStat[] {
   });
 }
 
-export function mapArmoryEquipmentRows(rows: unknown): ArmoryEquipmentSlot[] {
+export function mapArmoryEquipmentRows(rows: unknown, characterLevel: number): ArmoryEquipmentSlot[] {
   if (!Array.isArray(rows) || rows.length > EQUIPMENT_SLOTS.length) throw new ArmoryDataError("Armory equipment result is invalid.");
+  integer(characterLevel, "character level", 1, 80);
   const bySlot = new Map<number, ArmoryItem>();
   for (const raw of rows) {
     if (!isRecord(raw)) throw new ArmoryDataError("Armory equipment row is invalid.");
@@ -318,6 +399,8 @@ export function mapArmoryEquipmentRows(rows: unknown): ArmoryEquipmentSlot[] {
     const delay = integer(raw.delay, "weapon delay", 0, 60_000);
     const bonding = integer(raw.bonding, "item bonding", 0, 5);
     const description = text(raw.description, "item description", 255, true);
+    const scaling = getScalingContext(raw, characterLevel);
+    const scaledArmor = scaling ? getScaledArmor(scaling.values, scaling.mask) : 0;
     const item: ArmoryItem = {
       entry: integer(raw.itemEntry, "item entry", 1, MAX_UINT32),
       name: text(raw.name, "item name", 255),
@@ -326,33 +409,37 @@ export function mapArmoryEquipmentRows(rows: unknown): ArmoryEquipmentSlot[] {
       itemLevel: integer(raw.itemLevel, "item level", 0, 65_535),
       requiredLevel: integer(raw.requiredLevel, "required level", 0, 255),
       inventoryType: INVENTORY_TYPE_NAMES[integer(raw.inventoryType, "inventory type", 0, 28)] ?? "Equipment",
-      armor: integer(raw.armor, "armor", 0, MAX_UINT32),
+      armor: scaledArmor || integer(raw.armor, "armor", 0, MAX_UINT32),
       block: integer(raw.block, "block", 0, MAX_UINT32),
-      stats: mapStats(raw),
+      stats: scaling ? mapScaledStats(scaling) : mapStaticStats(raw),
       sockets: mapSockets(raw),
       resistances: mapResistances(raw)
     };
     const bondingName = BONDING_NAMES[bonding];
     if (bondingName) item.bonding = bondingName;
-    if (minimum > 0 || maximum > 0) {
-      // AzerothCore heirlooms can use min=1/max=0 with a nonzero delay as a
-      // level-scaling sentinel. Their final damage is not stored in item_template,
-      // so leave the static damage line out instead of rejecting the character.
-      const scalingDamageSentinel = minimum > 0 && maximum === 0 && delay > 0;
-      if (!scalingDamageSentinel && (maximum < minimum || delay === 0)) {
+    const scaledDps = scaling ? getScaledDps(scaling.values, scaling.mask) : 0;
+    if (scaledDps > 0) {
+      if (delay === 0) throw new ArmoryDataError("Armory scaled weapon delay is invalid.");
+      const speedSeconds = delay / 1_000;
+      const spread = (scaling!.mask & (0x00000400 | 0x00001000)) !== 0 ? 0.2 : 0.3;
+      const average = scaledDps * speedSeconds;
+      item.damage = {
+        minimum: (1 - spread) * average,
+        maximum: (1 + spread) * average,
+        speedSeconds,
+        dps: scaledDps
+      };
+    } else if (minimum > 0 || maximum > 0) {
+      if (maximum < minimum || delay === 0) {
         throw new ArmoryDataError("Armory weapon damage is inconsistent.");
       }
-      if (!scalingDamageSentinel) {
-        const speedSeconds = delay / 1_000;
-        item.damage = {
-          minimum,
-          maximum,
-          speedSeconds,
-          dps: Math.round((((minimum + maximum) / 2) / speedSeconds) * 10) / 10
-        };
-      } else {
-        item.damageScalesWithLevel = true;
-      }
+      const speedSeconds = delay / 1_000;
+      item.damage = {
+        minimum,
+        maximum,
+        speedSeconds,
+        dps: Math.round((((minimum + maximum) / 2) / speedSeconds) * 10) / 10
+      };
     }
     if (maxDurability > 0) item.durability = { current: currentDurability, maximum: maxDurability };
     if (description) item.description = description;
@@ -456,7 +543,7 @@ export class ArmoryService {
     return {
       ...publicSummary,
       generatedAt: this.now().toISOString(),
-      equipment: mapArmoryEquipmentRows(equipmentRows),
+      equipment: mapArmoryEquipmentRows(equipmentRows, summary.level),
       talentLoadouts: mapArmoryTalentRows(talentRows, groupCount, activeGroup)
     };
   }

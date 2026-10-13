@@ -21,6 +21,7 @@ TO 'portal-user'@'portal-host';
 
 GRANT SELECT (
   `entry`, `name`, `Quality`, `ItemLevel`, `RequiredLevel`, `InventoryType`, `bonding`,
+  `ScalingStatDistribution`, `ScalingStatValue`,
   `armor`, `block`, `MaxDurability`, `description`, `dmg_min1`, `dmg_max1`, `delay`,
   `holy_res`, `fire_res`, `nature_res`, `frost_res`, `shadow_res`, `arcane_res`,
   `socketColor_1`, `socketColor_2`, `socketColor_3`,

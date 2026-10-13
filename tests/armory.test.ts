@@ -33,6 +33,8 @@ test("builds bounded armory queries with bot, deletion, visibility, ownership, a
   const equipment = buildArmoryEquipmentQuery(config, 42);
   assert.match(equipment.sql, /ii\.owner_guid = ci\.guid/u);
   assert.match(equipment.sql, /ci\.bag = 0 AND ci\.slot BETWEEN 0 AND 18/u);
+  assert.match(equipment.sql, /ScalingStatDistribution AS scalingDistribution/u);
+  assert.match(equipment.sql, /ScalingStatValue AS scalingValue/u);
   assert.deepEqual(equipment.values, [42]);
 });
 
@@ -57,6 +59,7 @@ function equipmentRow(overrides: Record<string, unknown> = {}): Record<string, u
   const row: Record<string, unknown> = {
     slot: 0, itemEntry: 16846, durability: 80, name: "Giantstalker's Helmet", quality: 4,
     itemLevel: 66, requiredLevel: 60, inventoryType: 1, bonding: 1, armor: 343, block: 0,
+    scalingDistribution: 0, scalingValue: 0,
     maxDurability: 85, description: "", damageMinimum: 0, damageMaximum: 0, delay: 1000,
     holyResistance: 0, fireResistance: 5, natureResistance: 0, frostResistance: 0,
     shadowResistance: 0, arcaneResistance: 0, socket1: 2, socket2: 0, socket3: 0
@@ -69,7 +72,7 @@ function equipmentRow(overrides: Record<string, unknown> = {}): Record<string, u
 }
 
 test("maps equipped items into all nineteen slots and builds rich tooltip data", () => {
-  const equipment = mapArmoryEquipmentRows([equipmentRow()]);
+  const equipment = mapArmoryEquipmentRows([equipmentRow()], 80);
   assert.equal(equipment.length, 19);
   assert.equal(equipment[0]!.name, "Head");
   assert.deepEqual(equipment[0]!.item, {
@@ -89,26 +92,61 @@ test("maps equipped items into all nineteen slots and builds rich tooltip data",
     durability: { current: 80, maximum: 85 }
   });
   assert.equal(equipment[1]!.item, null);
-  assert.throws(() => mapArmoryEquipmentRows([equipmentRow(), equipmentRow({ itemEntry: 1 })]), /duplicate slot/u);
-  assert.throws(() => mapArmoryEquipmentRows([equipmentRow({ durability: 99 })]), /durability/u);
+  assert.throws(() => mapArmoryEquipmentRows([equipmentRow(), equipmentRow({ itemEntry: 1 })], 80), /duplicate slot/u);
+  assert.throws(() => mapArmoryEquipmentRows([equipmentRow({ durability: 99 })], 80), /durability/u);
 });
 
-test("accepts AzerothCore's level-scaling heirloom damage sentinel", () => {
+test("calculates AzerothCore heirloom stats and weapon damage at the character's level", () => {
   const equipment = mapArmoryEquipmentRows([equipmentRow({
     itemEntry: 44096,
     name: "Battleworn Thrash Blade",
     inventoryType: 13,
+    scalingDistribution: 297,
+    scalingValue: 516,
     damageMinimum: 1,
     damageMaximum: 0,
     delay: 2400
-  })]);
+  })], 24);
 
   assert.equal(equipment[0]!.item?.name, "Battleworn Thrash Blade");
-  assert.equal(equipment[0]!.item?.damage, undefined);
-  assert.equal(equipment[0]!.item?.damageScalesWithLevel, true);
+  assert.deepEqual(equipment[0]!.item?.stats, [{ name: "Resilience rating", value: 3 }]);
+  assert.equal(equipment[0]!.item?.damage?.speedSeconds, 2.4);
+  assert.equal(equipment[0]!.item?.damage?.dps, 18);
+  assert.ok(Math.abs((equipment[0]!.item?.damage?.minimum ?? 0) - 30.24) < 0.0001);
+  assert.ok(Math.abs((equipment[0]!.item?.damage?.maximum ?? 0) - 56.16) < 0.0001);
   assert.throws(() => mapArmoryEquipmentRows([
     equipmentRow({ damageMinimum: 20, damageMaximum: 10, delay: 2400 })
-  ]), /damage/u);
+  ], 24), /damage/u);
+});
+
+test("calculates level-scaled heirloom attributes, armor, and spell power", () => {
+  const shoulders = mapArmoryEquipmentRows([equipmentRow({
+    itemEntry: 42949,
+    name: "Polished Spaulders of Valor",
+    inventoryType: 3,
+    scalingDistribution: 7,
+    scalingValue: 257,
+    armor: 31,
+    damageMinimum: 0,
+    damageMaximum: 0,
+    delay: 0
+  })], 24)[0]!.item;
+
+  assert.equal(shoulders?.armor, 161);
+  assert.deepEqual(shoulders?.stats, [
+    { name: "Strength", value: 7 },
+    { name: "Stamina", value: 7 },
+    { name: "Critical strike rating", value: 5 }
+  ]);
+
+  const spellItem = mapArmoryEquipmentRows([equipmentRow({
+    scalingDistribution: 7,
+    scalingValue: 0x00008001,
+    damageMinimum: 0,
+    damageMaximum: 0,
+    delay: 0
+  })], 24)[0]!.item;
+  assert.deepEqual(spellItem?.stats.at(-1), { name: "Spell power", value: 19 });
 });
 
 test("groups known and custom talent spells into one or two loadouts", () => {

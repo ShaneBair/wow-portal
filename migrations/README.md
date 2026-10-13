@@ -35,7 +35,8 @@ Grant the application account only:
 - column-level `SELECT` for the documented Armory equipment columns on `character_inventory`,
   `item_instance`, and `character_talent`;
 - column-level `SELECT` for the Item Delivery lookup columns and documented Armory tooltip columns
-  on the AzerothCore world `item_template` table.
+  on the AzerothCore world `item_template` table, including `ScalingStatDistribution` and
+  `ScalingStatValue` for level-appropriate heirloom values.
 
 Keep its existing column-level authentication reads. The account-settings feature is the sole auth
 write exception: grant column-level `UPDATE` for only `account.salt` and `account.verifier` as

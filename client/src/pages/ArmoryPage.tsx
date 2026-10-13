@@ -34,7 +34,6 @@ function ItemDetails({ item }: { item: ArmoryItem }) {
       </div>
       <div>({item.damage.dps.toFixed(1)} damage per second)</div>
     </>}
-    {item.damageScalesWithLevel && <div>Damage scales with character level</div>}
     <ItemStatLines stats={item.stats} />
     <ItemStatLines stats={item.resistances} />
     {item.sockets.map((socket, index) => <div className="armory-socket" key={`${socket}-${index}`}>

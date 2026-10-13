@@ -15,6 +15,7 @@ Authenticated portal users can open `/armory`, select any visible non-bot charac
 - Both endpoints require a valid portal session, use the universal account-visibility middleware, are rate limited, and return `Cache-Control: no-store`.
 - Character IDs are treated as opaque decimal identifiers. Detail lookup rechecks visibility and never trusts client-supplied account, name, race, or class data.
 - Equipment comes from `character_inventory`, `item_instance`, and `item_template`. Only bag `0`, slots `0` through `18`, and item instances owned by the selected character are accepted.
+- Items with AzerothCore scaling metadata use the selected character's current level, capped by the distribution's maximum level, to calculate attributes, armor, spell power, weapon damage, speed, and DPS with the same masks and arithmetic as the deployed core. The checked-in scaling catalog is generated from the deployed `ScalingStatDistribution.dbc` and `ScalingStatValues.dbc` files.
 - Talent assignments come from `character_talent`. Names, ranks, positions, and tree names come from a checked-in catalog generated from the deployed WotLK 3.3.5a DBC files.
 - Unknown custom talent spells remain visible with a safe spell-ID fallback instead of failing the whole character.
 
@@ -40,7 +41,7 @@ Authenticated portal users can open `/armory`, select any visible non-bot charac
 
 ## Verification
 
-- Server tests cover query scoping, visibility exclusions, row bounds, item/stat mapping, talent grouping, ownership consistency, malformed data, authentication, rate limiting, no-store headers, and redacted failures.
+- Server tests cover query scoping, visibility exclusions, row bounds, static and level-scaled item/stat mapping, talent grouping, ownership consistency, malformed data, authentication, rate limiting, no-store headers, and redacted failures.
 - Client tests cover authenticated navigation, selection/direct routing, equipment slots, hover/focus tooltip content, tap dialog, Wowhead URLs, dual-spec talents, loading/error/session-expiry states, and malformed response rejection.
 - Run `npm test`, `npm run build`, and `docker compose config`.
 - Before deployment, apply the grant example with the deployed schema/user/host values and test representative empty, low-level, dual-spec, and fully geared characters.
