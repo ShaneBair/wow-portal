@@ -6,8 +6,18 @@ import { PortalApiError } from "../api/portal.js";
 import { useAuth } from "../auth/auth-context.js";
 import { DocumentTitle } from "../components/DocumentTitle.js";
 
-function safeReturnPath(value: string | null): "/" | "/boosts" | "/roster" | "/armory" | "/settings" {
-  return value === "/boosts" || value === "/roster" || value === "/armory" || value === "/settings" ? value : "/";
+function safeReturnPath(value: string | null): string {
+  if (value === "/boosts" || value === "/roster" || value === "/armory" || value === "/settings") return value;
+  if (!value?.startsWith("/armory?")) return "/";
+  const url = new URL(value, "https://portal.invalid");
+  const names = url.searchParams.getAll("character");
+  if (
+    url.pathname !== "/armory" || url.hash ||
+    [...url.searchParams.keys()].some((key) => key !== "character") || names.length !== 1
+  ) return "/";
+  const name = names[0]!;
+  if (!name || Array.from(name).length > 128 || /[\u0000-\u001f\u007f]/u.test(name)) return "/";
+  return `/armory?${new URLSearchParams({ character: name }).toString()}`;
 }
 
 export function LoginPage() {

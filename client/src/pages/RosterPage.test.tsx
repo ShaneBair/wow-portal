@@ -63,6 +63,8 @@ describe("authenticated roster page", () => {
       "Character", "Level", "Class", "Race", "Time played"
     ]);
     expect(within(table).getByText("Thalgrim")).toBeTruthy();
+    expect(within(table).getByRole("link", { name: "Thalgrim" }).getAttribute("href"))
+      .toBe("/armory?character=Thalgrim");
     expect(within(table).getByText("Paladin")).toBeTruthy();
     expect(within(table).getByText("Dwarf")).toBeTruthy();
     expect(within(table).getByLabelText("12 days, 5 hours, 4 minutes").textContent).toBe("12d 5h 4m");

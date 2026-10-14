@@ -16,6 +16,7 @@ import {
   statsPopulationQueryKey,
   useStatsPopulationContext
 } from "../stats/stats-population.js";
+import { CharacterArmoryLink } from "./CharacterArmoryLink.js";
 
 const STALE_TIME_MS = 60_000;
 const tableFeatureSet = tableFeatures({
@@ -165,7 +166,7 @@ function DeathLeaderboardTable({ entries }: { entries: DeathLeaderboardEntry[] }
           {table.getRowModel().rows.map((row) => (
             <tr key={row.id}>
               <td data-label="Character" className="character-name">
-                {row.original.characterName}
+                <CharacterArmoryLink characterName={row.original.characterName} isBot={row.original.isBot} />
               </td>
               <td data-label="Race">{row.original.race}</td>
               <td data-label="Class">{row.original.class}</td>

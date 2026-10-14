@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { getAccountRoster, RosterApiError } from "../api/roster.js";
 import { useAuth } from "../auth/auth-context.js";
+import { CharacterArmoryLink } from "../components/CharacterArmoryLink.js";
 import { DocumentTitle } from "../components/DocumentTitle.js";
 
 const STALE_TIME_MS = 60_000;
@@ -81,7 +82,9 @@ export function RosterPage() {
                 <tbody>{account.characters.map((character) => {
                   const duration = formatPlayedDuration(character.totalPlayedSeconds);
                   return <tr key={character.characterName}>
-                    <td data-label="Character" className="character-name">{character.characterName}</td>
+                    <td data-label="Character" className="character-name">
+                      <CharacterArmoryLink characterName={character.characterName} />
+                    </td>
                     <td data-label="Level" className="numeric-cell">{character.level}</td>
                     <td data-label="Class">{character.class}</td>
                     <td data-label="Race">{character.race}</td>

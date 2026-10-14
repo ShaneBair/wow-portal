@@ -16,6 +16,7 @@ import {
   statsPopulationQueryKey,
   useStatsPopulationContext
 } from "../stats/stats-population.js";
+import { CharacterArmoryLink } from "./CharacterArmoryLink.js";
 
 const STALE_TIME_MS = 60_000;
 const tableFeatureSet = tableFeatures({
@@ -138,7 +139,9 @@ function CompletionistTable({ entries }: { entries: QuestCompletionLeaderboardEn
         </thead>
         <tbody>
           {table.getRowModel().rows.map((row) => <tr key={row.id}>
-            <td data-label="Character" className="character-name">{row.original.characterName}</td>
+            <td data-label="Character" className="character-name">
+              <CharacterArmoryLink characterName={row.original.characterName} isBot={row.original.isBot} />
+            </td>
             <td data-label="Race">{row.original.race}</td>
             <td data-label="Class">{row.original.class}</td>
             <td data-label="Level" className="numeric-cell">{row.original.level}</td>
@@ -159,10 +162,13 @@ function CompletionistTable({ entries }: { entries: QuestCompletionLeaderboardEn
 function WinnerSummary({ entries }: { entries: QuestCompletionLeaderboardEntry[] }) {
   const winningTotal = entries[0]!.questCompletions;
   const winners = entries.filter((entry) => entry.questCompletions === winningTotal);
-  const names = winners.map((winner) => `${winner.characterName} (${winner.isBot ? "Bot" : "Player"})`);
   return <p className="award-winner">
     <strong>{winners.length === 1 ? "Leader:" : "Co-winners:"}</strong>{" "}
-    {names.join(winners.length === 2 ? " and " : ", ")} — {winningTotal.toLocaleString()}{" "}
+    {winners.map((winner, index) => <span key={`${winner.characterName}:${winner.accountLogin}:${winner.isBot}`}>
+      {index > 0 && (winners.length === 2 ? " and " : ", ")}
+      <CharacterArmoryLink characterName={winner.characterName} isBot={winner.isBot} />{" "}
+      ({winner.isBot ? "Bot" : "Player"})
+    </span>)} — {winningTotal.toLocaleString()}{" "}
     recorded quest {winningTotal === 1 ? "completion" : "completions"}
     {winners.length > 1 ? " each" : ""}.
   </p>;

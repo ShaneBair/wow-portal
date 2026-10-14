@@ -173,6 +173,25 @@ describe("portal authentication experience", () => {
     expect(router.state.location.pathname).toBe("/roster");
   });
 
+  it("preserves a bounded character armory lookup through login", async () => {
+    const { router } = renderApp("/armory?character=Kneecappin", (input) => {
+      const path = pathOf(input);
+      if (path === "/api/auth/session") return Promise.resolve(jsonResponse({ authenticated: false }));
+      if (path === "/api/auth/login") return Promise.resolve(jsonResponse(authenticatedSession));
+      if (path === "/api/armory") return Promise.resolve(jsonResponse({ characters: [] }));
+      return publicFallback(input);
+    });
+    expect(await screen.findByRole("heading", { level: 1, name: "Log in" })).toBeTruthy();
+    expect(new URLSearchParams(router.state.location.search).get("returnTo"))
+      .toBe("/armory?character=Kneecappin");
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Account name"), "test_user");
+    await user.type(screen.getByLabelText("Password"), "fabricated-password");
+    await user.click(screen.getByRole("button", { name: "Log in" }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/armory"));
+    expect(router.state.location.search).toBe("?character=Kneecappin");
+  });
+
   it("rejects an external return target", async () => {
     const { router } = renderApp("/login?returnTo=https://evil.example", (input) => {
       const path = pathOf(input);

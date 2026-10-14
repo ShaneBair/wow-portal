@@ -34,6 +34,8 @@ After logging in, a player sees `Roster` in the primary navigation. The page sho
 - race;
 - total time played.
 
+Each character name links to the authenticated Armory lookup for that character. The name is only a client-side handoff: the Armory resolves it against its own visibility-filtered character list before loading the canonical numeric character route.
+
 A signed-out visitor does not see `Roster` in primary navigation. Directly opening `/roster` sends the visitor to Login and safely returns them to `/roster` after successful authentication.
 
 ## Current Behavior

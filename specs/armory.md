@@ -23,6 +23,8 @@ Authenticated portal users can open `/armory`, select any visible non-bot charac
 
 - Armory navigation is visible only while authenticated.
 - `/armory` has a character picker and supports direct routes at `/armory/:characterId`.
+- Character names on Stats, Roster, and Players Online link through `/armory?character=<name>`. The Armory resolves that name only against its authenticated, visibility-filtered character list and replaces the URL with the canonical `/armory/:characterId` route. Bot statistic rows remain plain text because bots are excluded from the Armory.
+- A signed-out user following one of these links returns to the same character lookup after authentication. Only the single bounded `character` query parameter is accepted as an Armory login return target.
 - The character summary shows name, level, race, class, and active talent loadout.
 - Equipment renders every normal character slot, including empty slots.
 - Hovering or focusing an equipped item shows an accessible, dark game-style tooltip containing its server-owned name, quality, item level, slot/type, armor, damage, stats, sockets, requirements, durability, and description when present.

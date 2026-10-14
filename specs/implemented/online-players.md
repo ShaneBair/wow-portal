@@ -20,6 +20,8 @@ The home page contains a responsive panel that lists every currently online huma
 
 Bots never appear. Human-controlled GMs appear like other players.
 
+Each character name links to the authenticated Armory lookup. Signed-out visitors return to the same character lookup after login, and the Armory independently rechecks visibility before loading character details.
+
 ## Accepted Access Decision
 
 For this version, the panel and its API are intentionally unauthenticated, matching the rest of the current portal. The account login is therefore visible to anyone who can reach the portal.

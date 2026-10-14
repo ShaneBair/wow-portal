@@ -9,6 +9,7 @@ import {
 } from "@tanstack/react-table";
 import { useState } from "react";
 import { getBotWrangler, type BotWranglerEntry } from "../api/bot-wrangler.js";
+import { CharacterArmoryLink } from "./CharacterArmoryLink.js";
 
 const STALE_TIME_MS = 60_000;
 const QUERY_KEY = ["account-visible", "stats", "bot-wrangler"] as const;
@@ -119,7 +120,9 @@ function BotWranglerTable({ entries }: { entries: BotWranglerEntry[] }) {
         })}
       </tr>)}</thead>
       <tbody>{table.getRowModel().rows.map((row) => <tr key={row.id}>
-        <td data-label="Killer" className="character-name">{row.original.characterName}</td>
+        <td data-label="Killer" className="character-name">
+          <CharacterArmoryLink characterName={row.original.characterName} />
+        </td>
         <td data-label="Race">{row.original.race}</td>
         <td data-label="Class">{row.original.class}</td>
         <td data-label="Level" className="numeric-cell">{row.original.level}</td>

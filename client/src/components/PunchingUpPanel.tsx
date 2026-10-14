@@ -10,6 +10,7 @@ import {
 import { useState } from "react";
 import { getPunchingUp, type PunchingUpEntry } from "../api/punching-up.js";
 import { statsPopulationQueryKey, useStatsPopulationContext } from "../stats/stats-population.js";
+import { CharacterArmoryLink } from "./CharacterArmoryLink.js";
 
 const STALE_TIME_MS = 60_000;
 const tableFeatureSet = tableFeatures({ rowSortingFeature, sortedRowModel: createSortedRowModel() });
@@ -133,7 +134,9 @@ function PunchingUpTable({ entries }: { entries: PunchingUpEntry[] }) {
       <tbody>{table.getRowModel().rows.map((row) => {
         const entry = row.original;
         return <tr key={row.id}>
-          <td data-label="Character" className="character-name">{entry.characterName}</td>
+          <td data-label="Character" className="character-name">
+            <CharacterArmoryLink characterName={entry.characterName} isBot={entry.type === "Bot"} />
+          </td>
           <td data-label="Race">{entry.race}</td>
           <td data-label="Class">{entry.class}</td>
           <td data-label="Current level" className="numeric-cell">{entry.level}</td>

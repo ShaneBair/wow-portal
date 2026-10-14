@@ -9,6 +9,7 @@ import {
   type ProfessionalProcrastinatorEntry
 } from "../api/professional-procrastinator.js";
 import { statsPopulationQueryKey, useStatsPopulationContext } from "../stats/stats-population.js";
+import { CharacterArmoryLink } from "./CharacterArmoryLink.js";
 
 const features = tableFeatures({ rowSortingFeature, sortedRowModel: createSortedRowModel() });
 const helper = createColumnHelper<typeof features, ProfessionalProcrastinatorEntry>();
@@ -94,7 +95,10 @@ function Table({ entries }: { entries: ProfessionalProcrastinatorEntry[] }) {
       <tbody>{table.getRowModel().rows.map((row) => {
         const duration = formatProcrastinationDuration(row.original.durationMilliseconds);
         return <tr key={row.id}>
-          <td data-label="Character" className="character-name"><strong>{row.original.characterName}</strong>
+          <td data-label="Character" className="character-name">
+            <CharacterArmoryLink characterName={row.original.characterName} isBot={row.original.type === "Bot"}>
+              <strong>{row.original.characterName}</strong>
+            </CharacterArmoryLink>
             <span className="character-detail">{row.original.race} {row.original.class} · Level {row.original.level}</span></td>
           <td data-label="Type"><span className={`population-type ${row.original.type.toLowerCase()}`}>{row.original.type}</span></td>
           <td data-label="Level span" className="numeric-cell">{row.original.fromLevel} → {row.original.toLevel}</td>

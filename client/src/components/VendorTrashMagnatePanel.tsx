@@ -12,6 +12,7 @@ import {
   getVendorTrashMagnate,
   type VendorTrashMagnateEntry
 } from "../api/vendor-trash-magnate.js";
+import { CharacterArmoryLink } from "./CharacterArmoryLink.js";
 
 const STALE_TIME_MS = 60_000;
 const QUERY_KEY = ["account-visible", "stats", "vendor-trash-magnate"] as const;
@@ -108,7 +109,9 @@ function VendorTrashMagnateTable({ entries }: { entries: VendorTrashMagnateEntry
         })}
       </tr>)}</thead>
       <tbody>{table.getRowModel().rows.map((row) => <tr key={row.id}>
-        <td data-label="Character" className="character-name">{row.original.characterName}</td>
+        <td data-label="Character" className="character-name">
+          <CharacterArmoryLink characterName={row.original.characterName} />
+        </td>
         <td data-label="Race">{row.original.race}</td>
         <td data-label="Class">{row.original.class}</td>
         <td data-label="Level" className="numeric-cell">{row.original.level}</td>

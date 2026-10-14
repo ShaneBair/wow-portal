@@ -6,6 +6,7 @@ import {
 import { useState } from "react";
 import { getViolenceSpeedrun, type ViolenceSpeedrunEntry } from "../api/violence-speedrun.js";
 import { statsPopulationQueryKey, useStatsPopulationContext } from "../stats/stats-population.js";
+import { CharacterArmoryLink } from "./CharacterArmoryLink.js";
 
 const features = tableFeatures({ rowSortingFeature, sortedRowModel: createSortedRowModel() });
 const helper = createColumnHelper<typeof features, ViolenceSpeedrunEntry>();
@@ -80,7 +81,10 @@ function Table({ entries }: { entries: ViolenceSpeedrunEntry[] }) {
         </th>;
       })}</tr>)}</thead>
       <tbody>{table.getRowModel().rows.map((row) => <tr key={row.id}>
-        <td data-label="Character" className="character-name"><strong>{row.original.characterName}</strong>
+        <td data-label="Character" className="character-name">
+          <CharacterArmoryLink characterName={row.original.characterName} isBot={row.original.type === "Bot"}>
+            <strong>{row.original.characterName}</strong>
+          </CharacterArmoryLink>
           <span className="character-detail">{row.original.race} {row.original.class} · Level {row.original.level}</span>
         </td>
         <td data-label="Type"><span className={`population-type ${row.original.type.toLowerCase()}`}>{row.original.type}</span></td>

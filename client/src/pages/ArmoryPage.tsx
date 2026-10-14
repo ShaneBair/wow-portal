@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useId, useState } from "react";
-import { useNavigate, useParams } from "react-router";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 import {
   ArmoryApiError,
   getArmoryCharacter,
@@ -81,6 +81,7 @@ function ItemDialog({ item, onClose }: { item: ArmoryItem; onClose(): void }) {
 
 export function ArmoryPage() {
   const { characterId } = useParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const auth = useAuth();
   const [openItem, setOpenItem] = useState<ArmoryItem | undefined>();
@@ -104,12 +105,27 @@ export function ArmoryPage() {
     const error = charactersQuery.error ?? detailQuery.error;
     if (error instanceof ArmoryApiError && error.httpStatus === 401) auth.setSignedOut();
   }, [auth, charactersQuery.error, detailQuery.error]);
+  const requestedCharacterNames = searchParams.getAll("character");
+  const requestedCharacterName = requestedCharacterNames.length === 1
+    ? requestedCharacterNames[0]
+    : undefined;
+  const requestedCharacter = !characterId && requestedCharacterName && charactersQuery.data
+    ? charactersQuery.data.find((entry) =>
+      entry.name.localeCompare(requestedCharacterName, "en", { sensitivity: "base" }) === 0)
+    : undefined;
+  useEffect(() => {
+    if (requestedCharacter) {
+      void navigate(`/armory/${requestedCharacter.id}`, { replace: true });
+    }
+  }, [navigate, requestedCharacter]);
   useEffect(() => setOpenItem(undefined), [characterId]);
 
   const character = detailQuery.data;
   const unavailable = (charactersQuery.isError && !(charactersQuery.error instanceof ArmoryApiError && charactersQuery.error.httpStatus === 401)) ||
     (detailQuery.isError && !(detailQuery.error instanceof ArmoryApiError && [401, 404].includes(detailQuery.error.httpStatus)));
   const notFound = detailQuery.error instanceof ArmoryApiError && detailQuery.error.httpStatus === 404;
+  const requestedNameNotFound = !characterId && Boolean(requestedCharacterName) &&
+    charactersQuery.data !== undefined && !requestedCharacter;
   const pageTitle = character ? `${character.name} | Armory | DaBoysZeroth` : "Armory | DaBoysZeroth";
 
   return <main>
@@ -136,9 +152,9 @@ export function ArmoryPage() {
     </section>
 
     {detailQuery.isPending && characterId && <p className="players-message" role="status" aria-live="polite">Loading character...</p>}
-    {notFound && <p className="message error" role="status">That character is not available in the armory.</p>}
+    {(notFound || requestedNameNotFound) && <p className="message error" role="status">That character is not available in the armory.</p>}
     {unavailable && <p className="message error" role="status">The armory is temporarily unavailable.</p>}
-    {!characterId && !charactersQuery.isPending && !charactersQuery.isError && charactersQuery.data && charactersQuery.data.length > 0 &&
+    {!characterId && !requestedCharacterName && !charactersQuery.isPending && !charactersQuery.isError && charactersQuery.data && charactersQuery.data.length > 0 &&
       <p className="players-message armory-prompt">Choose a character to inspect their equipment and talents.</p>}
 
     {character && <>

@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { getOnlinePlayers } from "../api/portal.js";
+import { CharacterArmoryLink } from "./CharacterArmoryLink.js";
 
 const REFRESH_INTERVAL_MS = 30_000;
 
@@ -59,7 +60,9 @@ export function OnlinePlayersPanel() {
               {roster.players.map((player) => (
                 <tr key={`${player.accountLogin}:${player.characterName}`}>
                   <td data-label="Account" className="account-name">{player.accountLogin}</td>
-                  <td data-label="Character" className="character-name">{player.characterName}</td>
+                  <td data-label="Character" className="character-name">
+                    <CharacterArmoryLink characterName={player.characterName} />
+                  </td>
                   <td data-label="Race">{player.race}</td>
                   <td data-label="Class">{player.class}</td>
                   <td data-label="Level" className="numeric-cell">{player.level}</td>

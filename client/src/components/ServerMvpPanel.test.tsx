@@ -125,14 +125,14 @@ describe("Server MVP panel", () => {
           count: 1, entries: [{ ...entries[0], characterName: "PlayersWinner" }]
         })))
       : new Promise((resolve) => { resolveAll = resolve; }));
-    expect(await screen.findByText("PlayersWinner")).toBeTruthy();
+    expect((await screen.findAllByText("PlayersWinner")).length).toBeGreaterThan(0);
     await userEvent.setup().click(screen.getByLabelText("Players + bots"));
     expect(screen.queryByText("PlayersWinner")).toBeNull();
     expect(screen.getByText("Loading boss kill statistics...")).toBeTruthy();
     resolveAll?.(jsonResponse(leaderboard("all", {
       count: 1, entries: [{ ...entries[1], characterName: "CombinedWinner" }]
     })));
-    expect(await screen.findByText("CombinedWinner")).toBeTruthy();
+    expect((await screen.findAllByText("CombinedWinner")).length).toBeGreaterThan(0);
     const calls = fetchMock.mock.calls.filter(([input]) => pathOf(input).startsWith("/api/stats/boss-kills?"));
     expect(pathOf(calls[0]![0])).toBe("/api/stats/boss-kills?population=players");
     expect(pathOf(calls[1]![0])).toBe("/api/stats/boss-kills?population=all");

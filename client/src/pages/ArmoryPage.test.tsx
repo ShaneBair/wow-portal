@@ -103,6 +103,13 @@ describe("authenticated armory page", () => {
     expect(await screen.findByText("That character is not available in the armory.")).toBeTruthy();
   });
 
+  it("resolves a linked character name to the canonical armory route", async () => {
+    const linked = renderArmory("/armory?character=Kneecappin");
+    expect(await screen.findByRole("heading", { level: 2, name: "Kneecappin" })).toBeTruthy();
+    await waitFor(() => expect(linked.router.state.location.pathname).toBe("/armory/42"));
+    expect(linked.router.state.location.search).toBe("");
+  });
+
   it("clears an expired session and rejects malformed detail payloads", async () => {
     const expired = renderArmory("/armory/42", () => Promise.resolve(jsonResponse({ error: "Log in to continue." }, 401)));
     expect(await screen.findByRole("heading", { level: 1, name: "Log in" })).toBeTruthy();

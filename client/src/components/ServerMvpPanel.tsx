@@ -13,6 +13,7 @@ import {
   type BossKillLeaderboardEntry
 } from "../api/boss-kill-leaderboard.js";
 import { statsPopulationQueryKey, useStatsPopulationContext } from "../stats/stats-population.js";
+import { CharacterArmoryLink } from "./CharacterArmoryLink.js";
 
 const STALE_TIME_MS = 60_000;
 const tableFeatureSet = tableFeatures({ rowSortingFeature, sortedRowModel: createSortedRowModel() });
@@ -116,7 +117,9 @@ function ServerMvpTable({ entries }: { entries: BossKillLeaderboardEntry[] }) {
         })}
       </tr>)}</thead>
       <tbody>{table.getRowModel().rows.map((row) => <tr key={row.id}>
-        <td data-label="Character" className="character-name">{row.original.characterName}</td>
+        <td data-label="Character" className="character-name">
+          <CharacterArmoryLink characterName={row.original.characterName} isBot={row.original.isBot} />
+        </td>
         <td data-label="Race">{row.original.race}</td>
         <td data-label="Class">{row.original.class}</td>
         <td data-label="Level" className="numeric-cell">{row.original.level}</td>
@@ -133,10 +136,13 @@ function ServerMvpTable({ entries }: { entries: BossKillLeaderboardEntry[] }) {
 function WinnerSummary({ entries }: { entries: BossKillLeaderboardEntry[] }) {
   const total = entries[0]!.bossKills;
   const winners = entries.filter((entry) => entry.bossKills === total);
-  const names = winners.map((winner) => `${winner.characterName} (${winner.isBot ? "Bot" : "Player"})`);
   return <p className="award-winner">
     <strong>{winners.length === 1 ? "Leader:" : "Co-winners:"}</strong>{" "}
-    {names.join(winners.length === 2 ? " and " : ", ")} — {total.toLocaleString()} recorded boss
+    {winners.map((winner, index) => <span key={`${winner.characterName}:${winner.accountLogin}:${winner.isBot}`}>
+      {index > 0 && (winners.length === 2 ? " and " : ", ")}
+      <CharacterArmoryLink characterName={winner.characterName} isBot={winner.isBot} />{" "}
+      ({winner.isBot ? "Bot" : "Player"})
+    </span>)} — {total.toLocaleString()} recorded boss
     {total === 1 ? " killing blow" : " killing blows"}{winners.length > 1 ? " each" : ""}.
   </p>;
 }

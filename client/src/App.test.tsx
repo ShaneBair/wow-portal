@@ -410,6 +410,8 @@ describe("online roster", () => {
     renderRoute();
 
     expect(await screen.findByRole("cell", { name: "Thalgrim" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Thalgrim" }).getAttribute("href"))
+      .toBe("/armory?character=Thalgrim");
     expect(screen.getByRole("cell", { name: "Stranglethorn Vale" })).toBeTruthy();
     expect(screen.getByLabelText("1 real players online").textContent).toBe("1");
   });

@@ -10,6 +10,7 @@ import {
 import { useState } from "react";
 import { getTouchingGrass, type TouchingGrassEntry } from "../api/touching-grass.js";
 import { statsPopulationQueryKey, useStatsPopulationContext } from "../stats/stats-population.js";
+import { CharacterArmoryLink } from "./CharacterArmoryLink.js";
 
 const STALE_TIME_MS = 60_000;
 const tableFeatureSet = tableFeatures({ rowSortingFeature, sortedRowModel: createSortedRowModel() });
@@ -124,7 +125,9 @@ function TouchingGrassTable({ entries }: { entries: TouchingGrassEntry[] }) {
         })}
       </tr>)}</thead>
       <tbody>{table.getRowModel().rows.map((row) => <tr key={row.id}>
-        <td data-label="Character" className="character-name">{row.original.characterName}</td>
+        <td data-label="Character" className="character-name">
+          <CharacterArmoryLink characterName={row.original.characterName} isBot={row.original.type === "Bot"} />
+        </td>
         <td data-label="Race">{row.original.race}</td>
         <td data-label="Class">{row.original.class}</td>
         <td data-label="Level" className="numeric-cell">{row.original.level}</td>

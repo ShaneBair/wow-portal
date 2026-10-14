@@ -90,6 +90,9 @@ describe("Completionist panel", () => {
     expect(summary.textContent).toContain("Zaria (Bot)");
     expect(summary.textContent).toContain("84 recorded quest completions each");
     expect(screen.getByText(/Recorded quest completions from/u)).toBeTruthy();
+    expect(screen.getAllByRole("link", { name: "Thalgrim" })[0]?.getAttribute("href"))
+      .toBe("/armory?character=Thalgrim");
+    expect(screen.queryByRole("link", { name: "Zaria" })).toBeNull();
 
     await userEvent.setup().click(screen.getByRole("button", { name: /Sort by Character/u }));
     const rows = within(screen.getByRole("table")).getAllByRole("row");
@@ -105,7 +108,7 @@ describe("Completionist panel", () => {
           entries: [{ ...entries[0], characterName: "PlayersWinner" }]
         })))
       : new Promise((resolve) => { resolveAll = resolve; }));
-    expect(await screen.findByText("PlayersWinner")).toBeTruthy();
+    expect((await screen.findAllByText("PlayersWinner")).length).toBeGreaterThan(0);
     await userEvent.setup().click(screen.getByLabelText("Players + bots"));
     expect(screen.queryByText("PlayersWinner")).toBeNull();
     expect(screen.getByText("Loading quest completion statistics...")).toBeTruthy();
@@ -113,7 +116,7 @@ describe("Completionist panel", () => {
       count: 1,
       entries: [{ ...entries[1], characterName: "CombinedWinner" }]
     })));
-    expect(await screen.findByText("CombinedWinner")).toBeTruthy();
+    expect((await screen.findAllByText("CombinedWinner")).length).toBeGreaterThan(0);
     const questCalls = fetchMock.mock.calls.filter(([input]) => pathOf(input).startsWith("/api/stats/quest-completions?"));
     expect(pathOf(questCalls[0]![0])).toBe("/api/stats/quest-completions?population=players");
     expect(pathOf(questCalls[1]![0])).toBe("/api/stats/quest-completions?population=all");
